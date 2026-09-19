@@ -62,7 +62,6 @@ test('client manifest: dsh.client.inject keeps the real graph deps and NOT the l
   const inject = manifest.dsh.client.inject;
   assert.ok(Array.isArray(inject), 'dsh.client.inject must be a string array');
   const graphModules = [
-    '@deepseek-ai/dsh-client-runtime',
     '@deepseek-ai/dsh-client-locale',
     '@deepseek-ai/dsh-client-ui-settings',
   ];

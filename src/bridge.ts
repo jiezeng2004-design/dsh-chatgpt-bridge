@@ -9,14 +9,20 @@ import { createRequire } from 'node:module';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent, AgentOptions, ModelSelection } from '@deepseek-ai/dsh-agent';
 import { installModelSelection } from '@deepseek-ai/dsh-agent';
-import { resolveSessionPreset } from '@deepseek-ai/dsh-agent-presets';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import {
   SessionId,
+  SessionLogOffset,
   type Session,
   type SessionEvent,
   type SessionHeader,
 } from '@deepseek-ai/dsh-session';
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    'agent-preset/selected': { agentPreset: string };
+  }
+}
 import { foldSessionTitle } from '@deepseek-ai/dsh-session-title';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions';
@@ -160,7 +166,7 @@ export interface ApprovalRequestLike {
   agent: {
     id: string;
     session?: {
-      events?: readonly { type: string; data?: unknown }[];
+      snapshotEvents?: () => readonly SessionEvent[];
       header?: { cwd?: string };
     };
   };
@@ -173,6 +179,7 @@ export interface ApprovalRequestLike {
 /** One parked user question waiting on a ChatGPT answer. */
 export interface PendingQuestion {
   id: string;
+  callId?: string;
   sessionId?: string;
   questions: AskUserQuestionItem[];
   resolve: (answer: AskUserQuestionAnswer) => void;
@@ -300,6 +307,27 @@ function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
+/** Resolve effective session preset from its header and subsequent selection events. */
+function resolveSessionPreset(
+  header: { agentPreset?: string },
+  events?: readonly SessionEvent[],
+): string | undefined {
+  let preset = header.agentPreset;
+  if (events !== undefined) {
+    for (const event of events) {
+      if (
+        event.type === 'agent-preset/selected' &&
+        typeof event.data === 'object' &&
+        event.data !== null &&
+        'agentPreset' in event.data
+      ) {
+        preset = (event.data as { agentPreset?: string }).agentPreset;
+      }
+    }
+  }
+  return preset;
+}
+
 /** The bridge service. One instance per plugin activation. */
 export class Bridge {
   private readonly ctx: Context;
@@ -416,29 +444,23 @@ export class Bridge {
       // Headless: this process owns the answerer seams.
       this.webOwnsApprovals = false;
       this.approvalsEnabled = true;
-
-      const userQuestions = this.ctx.get('userQuestions');
-      if (userQuestions !== undefined) {
-        try {
-          userQuestions.registerProvider({
-            ask: async (request) => {
-              const id = `question-${++this.questionSeq}`;
-              const sessionId = request.agent?.id;
-              return new Promise<AskUserQuestionAnswer>((resolve) => {
-                this.questions.set(id, { id, sessionId, questions: request.questions, resolve });
-                this.log.info(`question ${id} pending for session ${sessionId ?? '(no agent)'}`);
-              });
-            },
-          });
-          this.questionsEnabled = true;
-        } catch (error) {
-          this.log.warn(`userQuestions provider slot already taken by another plugin; questions will flow through it: ${redactText(String(error))}`);
-          this.questionsEnabled = false;
-        }
-      }
+      this.questionsEnabled = true;
     }
 
-    this.ctx.on('approval/request', (request, next) => this.decideApproval(request as ApprovalRequestLike, next));
+    this.ctx.on('user-questions/request', async (request, next) => {
+      const sessionId = request.agent?.id;
+      if (!this.questionsEnabled || sessionId === undefined || !this.managed.has(sessionId)) {
+        return next();
+      }
+      const callId = openAskUserQuestions(request.agent?.session?.snapshotEvents?.() ?? [])[0]?.callId;
+      const id = callId ?? `question-${++this.questionSeq}`;
+      return new Promise<AskUserQuestionAnswer>((resolve) => {
+        this.questions.set(id, { id, callId, sessionId, questions: request.questions, resolve });
+        this.log.info(`question ${id} pending for session ${sessionId}`);
+      });
+    }, { global: true, prepend: true });
+
+    this.ctx.on('approval/request', (request, next) => this.decideApproval(request as ApprovalRequestLike, next), { global: true, prepend: true });
 
     this.ctx.effect(() => () => {
       this.muxAbort?.abort();
@@ -474,9 +496,7 @@ export class Bridge {
   }
 
   /** Agent-scoped model selection with log-derived fallback for resumes. */
-  private installSelection(agentCtx: Context): void {
-    const agent = agentCtx.agent;
-    if (agent === undefined) throw new BridgeError('AGENT_SETUP_NO_SCOPE', 'agent setup has no scoped agent');
+  private installSelection(agentCtx: Context, agent: Agent): void {
     const defaults = this.ctx.get('agentDefaultModel');
     let picked: ModelSelection | undefined;
     const selection: { current: ModelSelection; assembled: ModelSelection | undefined } = {
@@ -504,21 +524,21 @@ export class Bridge {
   /** Compose the preset+selection setup used at agent creation/resume. */
   private async composeSetupFor(presetId: string | undefined): Promise<{
     agentPreset?: string;
-    setup: (agentCtx: Context) => Promise<void> | void;
+    setup: (agentCtx: Context, agent: Agent) => Promise<void> | void;
   }> {
     const presets = this.ctx.get('agentPresets');
     if (presets === undefined) {
       return {
-        setup: (agentCtx) => {
-          this.installSelection(agentCtx);
+        setup: (agentCtx, agent) => {
+          this.installSelection(agentCtx, agent);
         },
       };
     }
     const resolvedId = presetId ?? (await presets.resolve(undefined)).id;
     return {
       agentPreset: resolvedId,
-      setup: async (agentCtx) => {
-        this.installSelection(agentCtx);
+      setup: async (agentCtx, agent) => {
+        this.installSelection(agentCtx, agent);
         await presets.mount(agentCtx, resolvedId);
       },
     };
@@ -529,15 +549,20 @@ export class Bridge {
   private async loadView(sessionId: string): Promise<LoadedView> {
     const liveAgent = this.ctx.agents.get(SessionId(sessionId));
     if (liveAgent !== undefined) {
-      return { agent: liveAgent, session: liveAgent.session, events: liveAgent.session.events, header: liveAgent.session.header };
+      return { agent: liveAgent, session: liveAgent.session, events: liveAgent.session.snapshotEvents(), header: liveAgent.session.header };
     }
     const persistence = this.ctx.get('sessionPersistence');
     if (persistence === undefined) {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and no session persistence is mounted`);
     }
     try {
-      const inspected = await persistence.inspect(SessionId(sessionId));
-      return { events: inspected.events, header: inspected.meta };
+      const handle = await persistence.open(SessionId(sessionId), 'read');
+      try {
+        const { events } = await handle.read();
+        return { events, header: handle.header };
+      } finally {
+        await handle.close();
+      }
     } catch {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and has no persisted log`);
     }
@@ -551,15 +576,20 @@ export class Bridge {
     if (persistence === undefined) {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and no session persistence is mounted`);
     }
-    let inspected;
+    let header: SessionHeader;
+    let events: readonly SessionEvent[];
     try {
-      inspected = await persistence.inspect(SessionId(sessionId));
+      const handle = await persistence.open(SessionId(sessionId), 'read');
+      try {
+        header = handle.header;
+        events = (await handle.read()).events;
+      } finally {
+        await handle.close();
+      }
     } catch {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and has no persisted log`);
     }
-    // persistence.inspect returns { meta, events }; the preset resolver
-    // expects the session-shaped { header, events }.
-    const presetId = resolveSessionPreset({ header: inspected.meta, events: inspected.events });
+    const presetId = resolveSessionPreset(header, events);
     const composition = await this.composeSetupFor(presetId);
     const { agent } = await this.ctx.agents.resume({
       resumeSessionId: SessionId(sessionId),
@@ -747,9 +777,11 @@ export class Bridge {
     const questions: QuestionSummary[] = [];
     for (const pending of this.questions.values()) {
       if (pending.sessionId !== sessionId) continue;
+      const key = pending.callId ?? pending.id;
+      seenQuestions.add(key);
       seenQuestions.add(pending.id);
       questions.push({
-        question_id: pending.id,
+        question_id: key,
         ...(pending.sessionId === undefined ? {} : { session_id: pending.sessionId }),
         questions: pending.questions,
       });
@@ -841,7 +873,7 @@ export class Bridge {
     const persisted = persistence === undefined ? [] : await persistence.list();
     const live = this.ctx.sessions.list();
     const byId = new Map<string, SessionHeader>();
-    for (const header of persisted) byId.set(header.id, header);
+    for (const snapshot of persisted) byId.set(snapshot.header.id, snapshot.header);
     for (const session of live) byId.set(session.id, session.header);
     let rows = [...byId.values()];
     if (options.workspace !== undefined && options.workspace !== '') {
@@ -866,10 +898,10 @@ export class Bridge {
         : deriveStatus({
             live: true,
             agentStatus: agent.status,
-            hasPendingInbox: agent.inbox.hasPending,
-            pendingApprovals: this.waitingFor(header.id, agent.session.events).approvals.length,
-            pendingQuestions: this.waitingFor(header.id, agent.session.events).questions.length,
-            events: agent.session.events,
+            hasPendingInbox: agent.inbox.nextTurn.length > 0 || agent.inbox.nextStep.length > 0,
+            pendingApprovals: this.waitingFor(header.id, agent.session.snapshotEvents()).approvals.length,
+            pendingQuestions: this.waitingFor(header.id, agent.session.snapshotEvents()).questions.length,
+            events: agent.session.snapshotEvents(),
           });
       out.push({
         session_id: header.id,
@@ -877,7 +909,7 @@ export class Bridge {
         ...(header.cwd === undefined ? {} : { workspace: header.cwd }),
         ...(status === undefined ? {} : { status }),
         created_at: iso(header.createdAt),
-        ...(agent === undefined ? {} : { updated_at: lastEventTime(agent.session.events) }),
+        ...(agent === undefined ? {} : { updated_at: lastEventTime(agent.session.snapshotEvents()) }),
       });
     }
     return out;
@@ -888,7 +920,7 @@ export class Bridge {
     const cache = this.ctx.get('sessionProjectionCache');
     if (cache === undefined) return undefined;
     try {
-      const snapshot = cache.cachedSnapshot(header);
+      const snapshot = cache.cachedSnapshot(header, SessionLogOffset(0));
       const value = snapshot?.values?.title;
       if (typeof value === 'string' && value !== '') return value;
       if (value !== null && typeof value === 'object' && 'title' in (value as Record<string, unknown>)) {
@@ -1585,11 +1617,11 @@ export class Bridge {
   ): Promise<ApprovalOutcome> {
     if (!this.managed.has(request.agent.id)) return next();
 
-    const command = commandForCall(request.agent.session?.events, request.callId);
+    const command = commandForCall(request.agent.session?.snapshotEvents?.(), request.callId);
     const workspacePath = request.agent.session?.header?.cwd
       ?? this.workspaceBaselines.get(request.agent.id)?.workspacePath;
     const writeOperation = classesForTool(request.toolName, command).includes('filesystem.write');
-    const targetPaths = filePathsForCall(request.agent.session?.events, request.callId);
+    const targetPaths = filePathsForCall(request.agent.session?.snapshotEvents?.(), request.callId);
     const externalWrite = writeOperation && (
       workspacePath === undefined
       || targetPaths.length === 0
@@ -1605,7 +1637,7 @@ export class Bridge {
       this.recordObservedExecutionFacts(
         request.agent.id,
         workspacePath,
-        foldGoalFacts((request.agent.session?.events ?? []) as readonly LooseEvent[]),
+        foldGoalFacts((request.agent.session?.snapshotEvents?.() ?? []) as readonly LooseEvent[]),
       );
       await this.refreshWorkspaceBaselineIfNeeded(request.agent.id, workspacePath);
     }
@@ -1715,7 +1747,7 @@ export class Bridge {
   }
 
   private rejectConstraint(request: {
-    agent: { id: string; session?: { events?: readonly { type: string; data?: unknown }[] } };
+    agent: { id: string; session?: { snapshotEvents?: () => readonly SessionEvent[] } };
     toolName: string;
     callId?: string;
   }): boolean {
@@ -1723,8 +1755,8 @@ export class Bridge {
     if (record === undefined) return false;
     const hasRules = Object.keys(record.constraints).length > 0 || record.completed_action_kinds.length > 0;
     if (!hasRules) return false;
-    const command = commandForCall(request.agent.session?.events, request.callId);
-    const changed = changedFileCountOf(request.agent.session?.events);
+    const command = commandForCall(request.agent.session?.snapshotEvents?.(), request.callId);
+    const changed = changedFileCountOf(request.agent.session?.snapshotEvents?.());
     const decision = evaluateConstraint({
       constraints: record.constraints,
       completedKinds: record.completed_action_kinds,
@@ -1924,7 +1956,7 @@ export class Bridge {
     custom?: string;
   }): Promise<{ answered: true }> {
     const pending = [...this.questions.values()].find(
-      (item) => item.id === questionId && (sessionId === undefined || item.sessionId === sessionId),
+      (item) => (item.id === questionId || item.callId === questionId) && (sessionId === undefined || item.sessionId === sessionId),
     );
     if (pending === undefined) {
       throw new BridgeError('QUESTION_NOT_FOUND', `no pending question ${questionId}`);
@@ -1937,7 +1969,8 @@ export class Bridge {
     if (question?.multiSelect !== true && answer.selected.length > 1) {
       throw new BridgeError('INVALID_ANSWER', `question ${questionId} is single-select`);
     }
-    this.questions.delete(questionId);
+    this.questions.delete(pending.id);
+    if (pending.callId !== undefined) this.questions.delete(pending.callId);
     const resolved: AskUserQuestionAnswer = {
       answers: [
         {

@@ -77,7 +77,7 @@ export function compositionHasWebGateway(ctx: { get(name: string): unknown }): b
   for (const entry of seen) {
     const id = entry.id ?? entry.options?.id;
     const name = entry.options?.name ?? '';
-    if (id === 'api-gateway' || name === '@deepseek-ai/dsh-host-apiproxy') return true;
+    if (id === 'api-gateway' || id === 'typert-gateway' || name === '@deepseek-ai/dsh-host-apiproxy' || name === '@deepseek-ai/dsh-api-gateway') return true;
   }
   return false;
 }

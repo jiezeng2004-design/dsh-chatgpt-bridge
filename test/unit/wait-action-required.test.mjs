@@ -24,7 +24,7 @@ test('A13: waitUntilActionRequired observes a running session transition to wait
     id: 's1',
     status: 'running',
     inbox: { nextTurn: [], nextStep: [] },
-    session: { events: [], header: { cwd: 'D:/test-workspace' } },
+    session: { events: [], snapshotEvents: () => [], header: { cwd: 'D:/test-workspace' } },
   };
   const bridge = makeBridge(mockAgent);
 
@@ -53,7 +53,7 @@ test('A13: waitUntilActionRequired uses one bounded server-side wait while work 
     id: 's2',
     status: 'running',
     inbox: { nextTurn: [], nextStep: [] },
-    session: { events: [], header: { cwd: 'D:/test-workspace' } },
+    session: { events: [], snapshotEvents: () => [], header: { cwd: 'D:/test-workspace' } },
   };
   const bridge = makeBridge(mockAgent);
   let t = 0;

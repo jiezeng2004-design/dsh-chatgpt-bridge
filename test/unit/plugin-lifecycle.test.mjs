@@ -141,23 +141,40 @@ test('package clean script is ESM-safe under type:module', () => {
 
 test('shared DSH host contracts are peers instead of ordinary dependencies', () => {
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-  const sharedHostPackages = ['@deepseek-ai/cordis', '@deepseek-ai/dsh-llm'];
+  const sharedHostPackages = [
+    '@deepseek-ai/cordis',
+    '@deepseek-ai/dsh-agent',
+    '@deepseek-ai/dsh-agent-presets',
+    '@deepseek-ai/dsh-llm',
+    '@deepseek-ai/dsh-session',
+    '@deepseek-ai/dsh-session-title',
+    '@deepseek-ai/dsh-user-approval',
+    '@deepseek-ai/dsh-user-questions',
+    '@deepseek-ai/dsh-workspace',
+  ];
 
   for (const packageName of sharedHostPackages) {
-    assert.equal(manifest.dependencies?.[packageName], undefined);
-    assert.equal(typeof manifest.peerDependencies?.[packageName], 'string');
-    assert.equal(typeof manifest.devDependencies?.[packageName], 'string');
+    assert.equal(manifest.dependencies?.[packageName], undefined, `${packageName} must not be in dependencies`);
+    assert.equal(typeof manifest.peerDependencies?.[packageName], 'string', `${packageName} must be in peerDependencies`);
+    assert.equal(typeof manifest.devDependencies?.[packageName], 'string', `${packageName} must be in devDependencies`);
   }
 });
 
-test('package manifest targets the verified DSH 0.1.1-rc.2 family', () => {
+test('package manifest targets the verified DSH 0.1.5-rc.2 family', () => {
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-  for (const section of ['dependencies', 'devDependencies']) {
-    for (const [packageName, version] of Object.entries(manifest[section] ?? {})) {
-      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.1.1-rc.2', `${section}.${packageName}`);
-    }
+  for (const [packageName] of Object.entries(manifest.dependencies ?? {})) {
+    assert.equal(
+      packageName.startsWith('@deepseek-ai/dsh-'),
+      false,
+      `DSH core package ${packageName} must never be in dependencies`,
+    );
   }
-  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-llm'], '^0.1.1-rc.2');
+  for (const [packageName, version] of Object.entries(manifest.devDependencies ?? {})) {
+    if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.1.5-rc.2', `devDependencies.${packageName}`);
+  }
+  for (const [packageName, version] of Object.entries(manifest.peerDependencies ?? {})) {
+    if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '^0.1.5-rc.2', `peerDependencies.${packageName}`);
+  }
 });
 
 test('package.json and package-lock.json carry the same release version', () => {

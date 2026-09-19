@@ -1,4 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis';
+import { type SessionEvent } from '@deepseek-ai/dsh-session';
+declare module '@deepseek-ai/dsh-session/types' {
+    interface SessionEventMap {
+        'agent-preset/selected': {
+            agentPreset: string;
+        };
+    }
+}
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions';
 import type { Workspace } from '@deepseek-ai/dsh-workspace';
@@ -41,10 +49,7 @@ export interface ApprovalRequestLike {
     agent: {
         id: string;
         session?: {
-            events?: readonly {
-                type: string;
-                data?: unknown;
-            }[];
+            snapshotEvents?: () => readonly SessionEvent[];
             header?: {
                 cwd?: string;
             };
@@ -58,6 +63,7 @@ export interface ApprovalRequestLike {
 /** One parked user question waiting on a ChatGPT answer. */
 export interface PendingQuestion {
     id: string;
+    callId?: string;
     sessionId?: string;
     questions: AskUserQuestionItem[];
     resolve: (answer: AskUserQuestionAnswer) => void;

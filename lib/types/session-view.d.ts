@@ -4,6 +4,16 @@
  * explicit budgets. Unit-testable with fixture events.
  */
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session';
+declare module '@deepseek-ai/dsh-session/types' {
+    interface SessionEventMap {
+        'todo/write': {
+            todos: readonly {
+                content: string;
+                status: string;
+            }[];
+        };
+    }
+}
 /** One turn's span in the log. */
 export interface TurnSpan {
     turn: number;

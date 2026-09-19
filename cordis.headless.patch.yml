@@ -1,25 +1,6 @@
 # Optional overlay for a headless (no dsh-web-app) profile.
 # Copy these inserts into that profile's own cordis.patch.yml.
-# Do NOT apply this overlay on top of dsh-web-app — those ids already exist.
+# Do NOT apply this overlay on top of dsh-web-app — workspace already exists.
 - insert:
-    - id: storage
-      name: '@deepseek-ai/dsh-storage'
-
-    - id: storage-json
-      name: '@deepseek-ai/dsh-storage-json'
-      config:
-        root: !!js dshHomePath('storages')
-
-    - id: storage-domain
-      name: '@deepseek-ai/dsh-storage-domain'
-      config:
-        backend: json
-
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
-
-    - id: session-projection-cache
-      name: '@deepseek-ai/dsh-session-projection-cache'
-      config:
-        writeEveryEvents: 200
-        writeIntervalMs: 5000

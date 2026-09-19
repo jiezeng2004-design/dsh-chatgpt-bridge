@@ -23,6 +23,7 @@ function makeLiveAgent(id, workspacePath, extras = {}) {
       id,
       header: { id, createdAt: Date.now(), cwd: workspacePath },
       events,
+      snapshotEvents: () => events,
       requestHeader: () => undefined,
     },
     followup(message) {
@@ -71,11 +72,15 @@ function makeStatefulBridge() {
     agents: agentsApi,
     sessions: { list: () => [...agents.values()].map((agent) => agent.session), get: (id) => agents.get(id)?.session },
     sessionPersistence: {
-      list: async () => [...agents.values()].map((agent) => agent.session.header),
-      inspect: async (id) => {
+      list: async () => [...agents.values()].map((agent) => ({ header: agent.session.header })),
+      open: async (id) => {
         const agent = agents.get(id);
         if (agent === undefined) throw new Error('missing');
-        return { meta: agent.session.header, events: agent.session.events };
+        return {
+          header: agent.session.header,
+          read: async () => ({ events: agent.session.snapshotEvents() }),
+          close: async () => {},
+        };
       },
     },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },

@@ -10,7 +10,7 @@
 
 **The bridge connects the two sides. It does not replace DSH, modify DSH core, or route DSH model traffic through ChatGPT.**
 
-Current package: **v0.5.1**, targeting DeepSeek Harness **0.1.1-rc.2**. After a successful connection, ChatGPT should see **tool count = 23**.
+Current package: **v0.5.1**, targeting DeepSeek Harness **0.1.5-rc.2**. After a successful connection, ChatGPT should see **tool count = 23**.
 
 ## Why this exists
 
@@ -226,7 +226,7 @@ Current package:
 dsh-chatgpt-bridge@0.5.1
 ```
 
-Compatibility: **v0.5.1 → DSH 0.1.1-rc.2**. Fresh real ChatGPT UI validation after each DSH upgrade still needs to be rechecked on your machine.
+Compatibility: **v0.5.1 → DSH 0.1.5-rc.2**. Fresh real ChatGPT UI validation after each DSH upgrade still needs to be rechecked on your machine.
 
 Distribution and ecosystem listings:
 
