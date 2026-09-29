@@ -229,6 +229,33 @@ Run the bridge and DSH Web in the same web profile/runtime. Separate runtimes ma
 
 Restart/upgrade the plugin as needed, then refresh/rescan the MCP tools on the ChatGPT side.
 
+### Tunnel never starts (`Tunnel: stopped`, `tunnel-health-url-timeout`)
+
+Check `~/.dsh/chatgpt-bridge/logs/manager.ndjson` for the tunnel-client startup lines. A common cause is
+the **wrong `tunnel-client` binary**: each GitHub release ships two flavors, and the reduced runtime build
+does not accept the flags this plugin passes.
+
+| Asset | Binary | Works with this plugin |
+| --- | --- | --- |
+| `tunnel-client-v<version>-<os>-<arch>.zip` | `tunnel-client` | yes — use this one |
+| `tunnel-client-runtime-v<version>-<os>-<arch>.zip` | `tunnel-client-runtime` | no — rejects `--admin-ui.log-buffer-events` |
+
+Symptom with the runtime build:
+
+```text
+warn  unknown flag: --admin-ui.log-buffer-events
+warn  tunnel-client exited code=1 signal=null
+warn  runtime mutation failed: tunnel-client did not report a health URL in time
+```
+
+The startup error now also carries the child's exit status and last stderr line, so this shows up in the
+UI instead of looking like a network problem. Install the full client binary (the plugin looks for a file
+*named* `tunnel-client`; do not rename the runtime build to fake it), point **Tunnel executable path** at
+it, and start again.
+
+While you are here, also check the other common causes: `Tunnel ID` / `Runtime API Key` not configured,
+and — on networks that cannot reach `api.openai.com` directly — **Enable proxy** left off.
+
 ## Project status
 
 This is an actively maintained, independent DSH plugin. Compatibility releases track DeepSeek Harness changes while preserving the bridge's MCP/tool semantics and security boundaries.

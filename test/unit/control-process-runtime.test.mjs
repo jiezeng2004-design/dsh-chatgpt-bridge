@@ -263,6 +263,42 @@ test('process-runtime: startup health timeout cleanup verifies identity before k
   await runtime.dispose();
 });
 
+test('process-runtime: health timeout reports the child exit code and last stderr line', async () => {
+  const child = mockChild(52005);
+  const runtime = new ProcessTunnelRuntime({
+    spawnFn: () => {
+      // A tunnel-client that rejects the plugin's argv exits immediately. Emit on
+      // the next tick so the runtime has attached its listeners first.
+      process.nextTick(() => {
+        child.stderr.emit('data', Buffer.from('unknown flag: --admin-ui.log-buffer-events\n'));
+        child.exitCode = 1;
+        child.emit('exit', 1, null);
+      });
+      return child;
+    },
+    spawnSyncFn: () => ({ status: 0, stdout: '', stderr: '' }),
+    httpGetStatusFn: async () => 200,
+    isAliveFn: () => false,
+    verifyIdentityFn: () => ({ ok: true, code: 'verified' }),
+    processKillFn: () => true,
+    platform: 'linux',
+    gracefulTimeoutMs: 0,
+    hardKillTimeoutMs: 0,
+    healthUrlTimeoutMs: 25,
+    discoverExecutable: () => ({ path: FAKE_BINARY, source: 'configured' }),
+  });
+  await assert.rejects(
+    () => runtime.start(uniqueLaunch({ healthUrlFile: join(tmp, 'health-missing.url') })),
+    (err) => {
+      assert.equal(err.code, 'tunnel-health-url-timeout');
+      assert.match(err.message, /exit=1/);
+      assert.match(err.message, /unknown flag: --admin-ui\.log-buffer-events/);
+      return true;
+    },
+  );
+  await runtime.dispose();
+});
+
 test('process-runtime: graceful stop then PID gone does not hard-kill', async () => {
   const child = mockChild(52002);
   let alive = true;
