@@ -77,6 +77,8 @@ export function compositionHasWebGateway(ctx: { get(name: string): unknown }): b
   for (const entry of seen) {
     const id = entry.id ?? entry.options?.id;
     const name = entry.options?.name ?? '';
+    // The 0.1.2+ gateway uses scoped remote events, not the old apiProxy mux.
+    if (name === '@deepseek-ai/dsh-api-gateway') continue;
     if (id === 'api-gateway' || name === '@deepseek-ai/dsh-host-apiproxy') return true;
   }
   return false;

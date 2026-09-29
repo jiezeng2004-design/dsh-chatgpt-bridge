@@ -4,6 +4,16 @@ import { deriveStatus, lastTurnEnd, foldPendingMessages, undecidedApprovals, ope
 
 const ev = (type, data, seq = 0, time = 0) => ({ type, seq, time, data });
 
+test('deriveStatus: fork seed closure is forked, not completed, and new work wins', () => {
+  const input = { pendingApprovals: 0, pendingQuestions: 0, events: [
+    ev('turn/start', { turn: 1 }, 0),
+    ev('turn/end', { turn: 1, reason: { kind: 'forked' } }, 1),
+  ] };
+  assert.equal(deriveStatus(input), 'forked');
+  assert.equal(deriveStatus({ ...input, hasPendingInbox: true }), 'queued');
+  assert.equal(deriveStatus({ ...input, agentStatus: 'running' }), 'running');
+});
+
 test('deriveStatus: fresh session is idle', () => {
   assert.equal(deriveStatus({ pendingApprovals: 0, pendingQuestions: 0, events: [] }), 'idle');
 });

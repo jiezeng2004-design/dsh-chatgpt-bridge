@@ -7,9 +7,9 @@
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import type { Context } from '@deepseek-ai/cordis';
-import type { Agent, AgentOptions, ModelSelection } from '@deepseek-ai/dsh-agent';
+import type { Agent, AgentOptions, AgentSetup, ModelSelection } from '@deepseek-ai/dsh-agent';
 import { installModelSelection } from '@deepseek-ai/dsh-agent';
-import { resolveSessionPreset } from '@deepseek-ai/dsh-agent-presets';
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-registry';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import {
   SessionId,
@@ -18,6 +18,7 @@ import {
   type SessionHeader,
 } from '@deepseek-ai/dsh-session';
 import { foldSessionTitle } from '@deepseek-ai/dsh-session-title';
+import { inspectPersistedSession, persistedHeader, sessionEvents } from './session-persistence-compat.js';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions';
 import type { Workspace } from '@deepseek-ai/dsh-workspace';
@@ -156,13 +157,20 @@ export interface PendingApproval {
 /** Who blocked or decided an approval, for deadlock diagnostics. */
 export type ApprovalLayer = 'user' | 'bridge_policy' | 'dsh_policy' | 'platform';
 
+interface ApprovalSession {
+  events?: readonly { type: string; data?: unknown }[];
+  snapshotEvents?: () => readonly { type: string; data?: unknown }[];
+  header?: { cwd?: string };
+}
+
+function approvalEvents(session: ApprovalSession | undefined) {
+  return session?.snapshotEvents?.() ?? session?.events ?? [];
+}
+
 export interface ApprovalRequestLike {
   agent: {
     id: string;
-    session?: {
-      events?: readonly { type: string; data?: unknown }[];
-      header?: { cwd?: string };
-    };
+    session?: ApprovalSession;
   };
   toolName: string;
   callId?: string;
@@ -413,23 +421,30 @@ export class Bridge {
         });
       }
     } else {
-      // Headless: this process owns the answerer seams.
+      // Current hosts expose scoped waterfalls in both Web and headless mode.
       this.webOwnsApprovals = false;
       this.approvalsEnabled = true;
 
       const userQuestions = this.ctx.get('userQuestions');
       if (userQuestions !== undefined) {
         try {
-          userQuestions.registerProvider({
-            ask: async (request) => {
-              const id = `question-${++this.questionSeq}`;
-              const sessionId = request.agent?.id;
-              return new Promise<AskUserQuestionAnswer>((resolve) => {
-                this.questions.set(id, { id, sessionId, questions: request.questions, resolve });
-                this.log.info(`question ${id} pending for session ${sessionId ?? '(no agent)'}`);
-              });
-            },
-          });
+          this.ctx.on('user-questions/request', async (request, next) => {
+            if (request.agent !== undefined && !this.managed.has(request.agent.id)) return next();
+            if (request.signal?.aborted) return { answers: [] };
+            const id = `question-${++this.questionSeq}`;
+            const sessionId = request.agent?.id;
+            return new Promise<AskUserQuestionAnswer>((resolve) => {
+              const settle = (answer: AskUserQuestionAnswer) => {
+                request.signal?.removeEventListener('abort', abort);
+                this.questions.delete(id);
+                resolve(answer);
+              };
+              const abort = () => settle({ answers: [] });
+              this.questions.set(id, { id, sessionId, questions: request.questions, resolve: settle });
+              request.signal?.addEventListener('abort', abort, { once: true });
+              this.log.info(`question ${id} pending for session ${sessionId ?? '(no agent)'}`);
+            });
+          }, { prepend: true });
           this.questionsEnabled = true;
         } catch (error) {
           this.log.warn(`userQuestions provider slot already taken by another plugin; questions will flow through it: ${redactText(String(error))}`);
@@ -438,7 +453,7 @@ export class Bridge {
       }
     }
 
-    this.ctx.on('approval/request', (request, next) => this.decideApproval(request as ApprovalRequestLike, next));
+    this.ctx.on('approval/request', (request, next) => this.decideApproval(request as ApprovalRequestLike, next), { prepend: true });
 
     this.ctx.effect(() => () => {
       this.muxAbort?.abort();
@@ -470,13 +485,11 @@ export class Bridge {
       const selection = defaults.currentSelection();
       return { provider: selection.provider, model: selection.model };
     }
-    return { provider: 'deepseek-official', model: 'deepseek-v4-flash' };
+    return { provider: 'deepseek-official', model: 'deepseek-flash' };
   }
 
   /** Agent-scoped model selection with log-derived fallback for resumes. */
-  private installSelection(agentCtx: Context): void {
-    const agent = agentCtx.agent;
-    if (agent === undefined) throw new BridgeError('AGENT_SETUP_NO_SCOPE', 'agent setup has no scoped agent');
+  private installSelection(agentCtx: Context, agent: Agent): void {
     const defaults = this.ctx.get('agentDefaultModel');
     let picked: ModelSelection | undefined;
     const selection: { current: ModelSelection; assembled: ModelSelection | undefined } = {
@@ -491,7 +504,7 @@ export class Bridge {
           };
         }
         if (defaults !== undefined) return defaults.currentSelection();
-        return { provider: 'deepseek-official', model: 'deepseek-v4-flash' };
+        return { provider: 'deepseek-official', model: 'deepseek-flash' };
       },
       set current(next) {
         picked = next;
@@ -504,21 +517,21 @@ export class Bridge {
   /** Compose the preset+selection setup used at agent creation/resume. */
   private async composeSetupFor(presetId: string | undefined): Promise<{
     agentPreset?: string;
-    setup: (agentCtx: Context) => Promise<void> | void;
+    setup: AgentSetup;
   }> {
     const presets = this.ctx.get('agentPresets');
     if (presets === undefined) {
       return {
-        setup: (agentCtx) => {
-          this.installSelection(agentCtx);
+        setup: (agentCtx, agent) => {
+          this.installSelection(agentCtx, agent);
         },
       };
     }
     const resolvedId = presetId ?? (await presets.resolve(undefined)).id;
     return {
       agentPreset: resolvedId,
-      setup: async (agentCtx) => {
-        this.installSelection(agentCtx);
+      setup: async (agentCtx, agent) => {
+        this.installSelection(agentCtx, agent);
         await presets.mount(agentCtx, resolvedId);
       },
     };
@@ -529,14 +542,14 @@ export class Bridge {
   private async loadView(sessionId: string): Promise<LoadedView> {
     const liveAgent = this.ctx.agents.get(SessionId(sessionId));
     if (liveAgent !== undefined) {
-      return { agent: liveAgent, session: liveAgent.session, events: liveAgent.session.events, header: liveAgent.session.header };
+      return { agent: liveAgent, session: liveAgent.session, events: sessionEvents(liveAgent.session), header: liveAgent.session.header };
     }
     const persistence = this.ctx.get('sessionPersistence');
     if (persistence === undefined) {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and no session persistence is mounted`);
     }
     try {
-      const inspected = await persistence.inspect(SessionId(sessionId));
+      const inspected = await inspectPersistedSession(persistence, SessionId(sessionId));
       return { events: inspected.events, header: inspected.meta };
     } catch {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and has no persisted log`);
@@ -553,13 +566,14 @@ export class Bridge {
     }
     let inspected;
     try {
-      inspected = await persistence.inspect(SessionId(sessionId));
+      inspected = await inspectPersistedSession(persistence, SessionId(sessionId));
     } catch {
       throw new BridgeError('SESSION_NOT_FOUND', `session ${sessionId} is not live and has no persisted log`);
     }
-    // persistence.inspect returns { meta, events }; the preset resolver
-    // expects the session-shaped { header, events }.
-    const presetId = resolveSessionPreset({ header: inspected.meta, events: inspected.events });
+    // Replay the official preset projection so a blank-session preset change
+    // survives a cold resume, rather than using only the creation header.
+    const presetId = inspected.events.reduce(agentPresetProjectionDefinition.apply,
+      agentPresetProjectionDefinition.init(inspected.meta)) ?? undefined;
     const composition = await this.composeSetupFor(presetId);
     const { agent } = await this.ctx.agents.resume({
       resumeSessionId: SessionId(sessionId),
@@ -841,7 +855,10 @@ export class Bridge {
     const persisted = persistence === undefined ? [] : await persistence.list();
     const live = this.ctx.sessions.list();
     const byId = new Map<string, SessionHeader>();
-    for (const header of persisted) byId.set(header.id, header);
+    for (const row of persisted) {
+      const header = persistedHeader(row);
+      byId.set(header.id, header);
+    }
     for (const session of live) byId.set(session.id, session.header);
     let rows = [...byId.values()];
     if (options.workspace !== undefined && options.workspace !== '') {
@@ -866,10 +883,10 @@ export class Bridge {
         : deriveStatus({
             live: true,
             agentStatus: agent.status,
-            hasPendingInbox: agent.inbox.hasPending,
-            pendingApprovals: this.waitingFor(header.id, agent.session.events).approvals.length,
-            pendingQuestions: this.waitingFor(header.id, agent.session.events).questions.length,
-            events: agent.session.events,
+            hasPendingInbox: agent.inbox.nextTurn.length + agent.inbox.nextStep.length > 0,
+            pendingApprovals: this.waitingFor(header.id, sessionEvents(agent.session)).approvals.length,
+            pendingQuestions: this.waitingFor(header.id, sessionEvents(agent.session)).questions.length,
+            events: sessionEvents(agent.session),
           });
       out.push({
         session_id: header.id,
@@ -877,7 +894,7 @@ export class Bridge {
         ...(header.cwd === undefined ? {} : { workspace: header.cwd }),
         ...(status === undefined ? {} : { status }),
         created_at: iso(header.createdAt),
-        ...(agent === undefined ? {} : { updated_at: lastEventTime(agent.session.events) }),
+        ...(agent === undefined ? {} : { updated_at: lastEventTime(sessionEvents(agent.session)) }),
       });
     }
     return out;
@@ -1585,11 +1602,12 @@ export class Bridge {
   ): Promise<ApprovalOutcome> {
     if (!this.managed.has(request.agent.id)) return next();
 
-    const command = commandForCall(request.agent.session?.events, request.callId);
+    const events = approvalEvents(request.agent.session);
+    const command = commandForCall(events, request.callId);
     const workspacePath = request.agent.session?.header?.cwd
       ?? this.workspaceBaselines.get(request.agent.id)?.workspacePath;
     const writeOperation = classesForTool(request.toolName, command).includes('filesystem.write');
-    const targetPaths = filePathsForCall(request.agent.session?.events, request.callId);
+    const targetPaths = filePathsForCall(events, request.callId);
     const externalWrite = writeOperation && (
       workspacePath === undefined
       || targetPaths.length === 0
@@ -1605,7 +1623,7 @@ export class Bridge {
       this.recordObservedExecutionFacts(
         request.agent.id,
         workspacePath,
-        foldGoalFacts((request.agent.session?.events ?? []) as readonly LooseEvent[]),
+        foldGoalFacts(events as readonly LooseEvent[]),
       );
       await this.refreshWorkspaceBaselineIfNeeded(request.agent.id, workspacePath);
     }
@@ -1658,7 +1676,7 @@ export class Bridge {
         this.noteMutation(workspacePath, request.agent.id, request.toolName, command, request.callId);
       }
       this.log.info(`auto-approving L0/L1 tool ${request.toolName} (capability ${evalDecision.capability}) for session ${request.agent.id}`);
-      return 'approved' as ApprovalOutcome;
+      return 'allowed-once';
     }
     if (evalDecision.decision === 'deny') {
       this.log.info(`policy denied tool ${request.toolName} (capability ${evalDecision.capability}) for session ${request.agent.id}: ${evalDecision.reason}`);
@@ -1715,7 +1733,7 @@ export class Bridge {
   }
 
   private rejectConstraint(request: {
-    agent: { id: string; session?: { events?: readonly { type: string; data?: unknown }[] } };
+    agent: { id: string; session?: ApprovalSession };
     toolName: string;
     callId?: string;
   }): boolean {
@@ -1723,8 +1741,9 @@ export class Bridge {
     if (record === undefined) return false;
     const hasRules = Object.keys(record.constraints).length > 0 || record.completed_action_kinds.length > 0;
     if (!hasRules) return false;
-    const command = commandForCall(request.agent.session?.events, request.callId);
-    const changed = changedFileCountOf(request.agent.session?.events);
+    const events = approvalEvents(request.agent.session);
+    const command = commandForCall(events, request.callId);
+    const changed = changedFileCountOf(events);
     const decision = evaluateConstraint({
       constraints: record.constraints,
       completedKinds: record.completed_action_kinds,

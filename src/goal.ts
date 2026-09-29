@@ -195,6 +195,7 @@ export function isTerminalStatus(status: BridgeStatus): boolean {
     || status === 'blocked'
     || status === 'max-tokens'
     || status === 'interrupted'
+    || status === 'forked'
   );
 }
 

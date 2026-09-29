@@ -29,3 +29,5 @@ jobs:
         run: npm run build
       - name: Test
         run: npm test
+      - name: Packed package install and isolated official DSH contracts
+        run: npm run test:release

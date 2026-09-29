@@ -37,18 +37,23 @@ export interface PendingApproval {
 }
 /** Who blocked or decided an approval, for deadlock diagnostics. */
 export type ApprovalLayer = 'user' | 'bridge_policy' | 'dsh_policy' | 'platform';
+interface ApprovalSession {
+    events?: readonly {
+        type: string;
+        data?: unknown;
+    }[];
+    snapshotEvents?: () => readonly {
+        type: string;
+        data?: unknown;
+    }[];
+    header?: {
+        cwd?: string;
+    };
+}
 export interface ApprovalRequestLike {
     agent: {
         id: string;
-        session?: {
-            events?: readonly {
-                type: string;
-                data?: unknown;
-            }[];
-            header?: {
-                cwd?: string;
-            };
-        };
+        session?: ApprovalSession;
     };
     toolName: string;
     callId?: string;

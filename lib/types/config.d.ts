@@ -4,109 +4,109 @@ import type { LogLevel } from './log.js';
  * Plugin configuration (schemastery schema, DSH convention). All defaults are
  * security-first: loopback-only host, bearer-token auth, bounded result sizes.
  */
-export declare const ConfigSchema: z<Schemastery.ObjectS<{
+export declare const ConfigSchema: z<Schemastery.ObjectS<NoInfer<{
     /** MCP transport: 'http' (Streamable HTTP) or 'stdio' (local MCP clients). */
-    transport: z<"http" | "stdio", "http" | "stdio">;
+    transport: z<"http" | "stdio", "http" | "stdio", "defined">;
     /** Bind host for the Streamable HTTP server. Loopback only by default. */
-    host: z<string, string>;
+    host: z<string, string, "defined">;
     /** Bind port for the Streamable HTTP server. */
-    port: z<number, number>;
+    port: z<number, number, "defined">;
     /** 'token' requires Authorization: Bearer <token>; 'none' disables auth (loopback only, not recommended). */
-    authMode: z<"token" | "none", "token" | "none">;
+    authMode: z<"token" | "none", "token" | "none", "defined">;
     /** Static token; empty falls back to authTokenEnv, then a generated token persisted to tokenFile. */
-    authToken: z<string, string>;
+    authToken: z<string, string, "defined">;
     /** Environment variable read when authToken is empty. */
-    authTokenEnv: z<string, string>;
+    authTokenEnv: z<string, string, "defined">;
     /** Where a generated token is persisted; empty means $DSH_HOME/chatgpt-bridge.token. */
-    tokenFile: z<string, string>;
+    tokenFile: z<string, string, "defined">;
     /** Max characters of assistant text returned by dsh_get_result. */
-    resultMaxChars: z<number, number>;
+    resultMaxChars: z<number, number, "defined">;
     /** Max tool calls returned by dsh_get_result. */
-    resultMaxItems: z<number, number>;
+    resultMaxItems: z<number, number, "defined">;
     /** Max message rows returned by dsh_get_session. */
-    sessionMaxItems: z<number, number>;
+    sessionMaxItems: z<number, number, "defined">;
     /** Max characters per message text returned by dsh_get_session. */
-    sessionMaxChars: z<number, number>;
+    sessionMaxChars: z<number, number, "defined">;
     /** Log verbosity: debug | info | warn | error. */
-    logLevel: z<"error" | "debug" | "info" | "warn", "error" | "debug" | "info" | "warn">;
+    logLevel: z<"error" | "debug" | "info" | "warn", "error" | "debug" | "info" | "warn", "defined">;
     /** Risk-tiered auto-approval policy. Omitted fields keep the safe defaults. */
-    approvalPolicy: z<Schemastery.ObjectS<{
-        read: z<"auto" | "ask", "auto" | "ask">;
-        test: z<"auto" | "ask", "auto" | "ask">;
-        build: z<"auto" | "ask", "auto" | "ask">;
-        workspaceWrite: z<"auto" | "ask", "auto" | "ask">;
-        localCommit: z<"auto" | "ask", "auto" | "ask">;
-        externalWrite: z<"auto" | "ask", "auto" | "ask">;
-        gitPush: z<"auto" | "ask", "auto" | "ask">;
-        npmPublish: z<"auto" | "ask", "auto" | "ask">;
-        githubRelease: z<"auto" | "ask", "auto" | "ask">;
-        secrets: z<"deny" | "ask", "deny" | "ask">;
-        dangerFullAccess: z<"deny" | "ask", "deny" | "ask">;
-    }>, Schemastery.ObjectT<{
-        read: z<"auto" | "ask", "auto" | "ask">;
-        test: z<"auto" | "ask", "auto" | "ask">;
-        build: z<"auto" | "ask", "auto" | "ask">;
-        workspaceWrite: z<"auto" | "ask", "auto" | "ask">;
-        localCommit: z<"auto" | "ask", "auto" | "ask">;
-        externalWrite: z<"auto" | "ask", "auto" | "ask">;
-        gitPush: z<"auto" | "ask", "auto" | "ask">;
-        npmPublish: z<"auto" | "ask", "auto" | "ask">;
-        githubRelease: z<"auto" | "ask", "auto" | "ask">;
-        secrets: z<"deny" | "ask", "deny" | "ask">;
-        dangerFullAccess: z<"deny" | "ask", "deny" | "ask">;
-    }>>;
-}>, Schemastery.ObjectT<{
+    approvalPolicy: z<Schemastery.ObjectS<NoInfer<{
+        read: z<"auto" | "ask", "auto" | "ask", "defined">;
+        test: z<"auto" | "ask", "auto" | "ask", "defined">;
+        build: z<"auto" | "ask", "auto" | "ask", "defined">;
+        workspaceWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        localCommit: z<"auto" | "ask", "auto" | "ask", "defined">;
+        externalWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        gitPush: z<"auto" | "ask", "auto" | "ask", "defined">;
+        npmPublish: z<"auto" | "ask", "auto" | "ask", "defined">;
+        githubRelease: z<"auto" | "ask", "auto" | "ask", "defined">;
+        secrets: z<"deny" | "ask", "deny" | "ask", "defined">;
+        dangerFullAccess: z<"deny" | "ask", "deny" | "ask", "defined">;
+    }>>, Schemastery.ObjectT<NoInfer<{
+        read: z<"auto" | "ask", "auto" | "ask", "defined">;
+        test: z<"auto" | "ask", "auto" | "ask", "defined">;
+        build: z<"auto" | "ask", "auto" | "ask", "defined">;
+        workspaceWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        localCommit: z<"auto" | "ask", "auto" | "ask", "defined">;
+        externalWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        gitPush: z<"auto" | "ask", "auto" | "ask", "defined">;
+        npmPublish: z<"auto" | "ask", "auto" | "ask", "defined">;
+        githubRelease: z<"auto" | "ask", "auto" | "ask", "defined">;
+        secrets: z<"deny" | "ask", "deny" | "ask", "defined">;
+        dangerFullAccess: z<"deny" | "ask", "deny" | "ask", "defined">;
+    }>>, "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
     /** MCP transport: 'http' (Streamable HTTP) or 'stdio' (local MCP clients). */
-    transport: z<"http" | "stdio", "http" | "stdio">;
+    transport: z<"http" | "stdio", "http" | "stdio", "defined">;
     /** Bind host for the Streamable HTTP server. Loopback only by default. */
-    host: z<string, string>;
+    host: z<string, string, "defined">;
     /** Bind port for the Streamable HTTP server. */
-    port: z<number, number>;
+    port: z<number, number, "defined">;
     /** 'token' requires Authorization: Bearer <token>; 'none' disables auth (loopback only, not recommended). */
-    authMode: z<"token" | "none", "token" | "none">;
+    authMode: z<"token" | "none", "token" | "none", "defined">;
     /** Static token; empty falls back to authTokenEnv, then a generated token persisted to tokenFile. */
-    authToken: z<string, string>;
+    authToken: z<string, string, "defined">;
     /** Environment variable read when authToken is empty. */
-    authTokenEnv: z<string, string>;
+    authTokenEnv: z<string, string, "defined">;
     /** Where a generated token is persisted; empty means $DSH_HOME/chatgpt-bridge.token. */
-    tokenFile: z<string, string>;
+    tokenFile: z<string, string, "defined">;
     /** Max characters of assistant text returned by dsh_get_result. */
-    resultMaxChars: z<number, number>;
+    resultMaxChars: z<number, number, "defined">;
     /** Max tool calls returned by dsh_get_result. */
-    resultMaxItems: z<number, number>;
+    resultMaxItems: z<number, number, "defined">;
     /** Max message rows returned by dsh_get_session. */
-    sessionMaxItems: z<number, number>;
+    sessionMaxItems: z<number, number, "defined">;
     /** Max characters per message text returned by dsh_get_session. */
-    sessionMaxChars: z<number, number>;
+    sessionMaxChars: z<number, number, "defined">;
     /** Log verbosity: debug | info | warn | error. */
-    logLevel: z<"error" | "debug" | "info" | "warn", "error" | "debug" | "info" | "warn">;
+    logLevel: z<"error" | "debug" | "info" | "warn", "error" | "debug" | "info" | "warn", "defined">;
     /** Risk-tiered auto-approval policy. Omitted fields keep the safe defaults. */
-    approvalPolicy: z<Schemastery.ObjectS<{
-        read: z<"auto" | "ask", "auto" | "ask">;
-        test: z<"auto" | "ask", "auto" | "ask">;
-        build: z<"auto" | "ask", "auto" | "ask">;
-        workspaceWrite: z<"auto" | "ask", "auto" | "ask">;
-        localCommit: z<"auto" | "ask", "auto" | "ask">;
-        externalWrite: z<"auto" | "ask", "auto" | "ask">;
-        gitPush: z<"auto" | "ask", "auto" | "ask">;
-        npmPublish: z<"auto" | "ask", "auto" | "ask">;
-        githubRelease: z<"auto" | "ask", "auto" | "ask">;
-        secrets: z<"deny" | "ask", "deny" | "ask">;
-        dangerFullAccess: z<"deny" | "ask", "deny" | "ask">;
-    }>, Schemastery.ObjectT<{
-        read: z<"auto" | "ask", "auto" | "ask">;
-        test: z<"auto" | "ask", "auto" | "ask">;
-        build: z<"auto" | "ask", "auto" | "ask">;
-        workspaceWrite: z<"auto" | "ask", "auto" | "ask">;
-        localCommit: z<"auto" | "ask", "auto" | "ask">;
-        externalWrite: z<"auto" | "ask", "auto" | "ask">;
-        gitPush: z<"auto" | "ask", "auto" | "ask">;
-        npmPublish: z<"auto" | "ask", "auto" | "ask">;
-        githubRelease: z<"auto" | "ask", "auto" | "ask">;
-        secrets: z<"deny" | "ask", "deny" | "ask">;
-        dangerFullAccess: z<"deny" | "ask", "deny" | "ask">;
-    }>>;
-}>>;
+    approvalPolicy: z<Schemastery.ObjectS<NoInfer<{
+        read: z<"auto" | "ask", "auto" | "ask", "defined">;
+        test: z<"auto" | "ask", "auto" | "ask", "defined">;
+        build: z<"auto" | "ask", "auto" | "ask", "defined">;
+        workspaceWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        localCommit: z<"auto" | "ask", "auto" | "ask", "defined">;
+        externalWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        gitPush: z<"auto" | "ask", "auto" | "ask", "defined">;
+        npmPublish: z<"auto" | "ask", "auto" | "ask", "defined">;
+        githubRelease: z<"auto" | "ask", "auto" | "ask", "defined">;
+        secrets: z<"deny" | "ask", "deny" | "ask", "defined">;
+        dangerFullAccess: z<"deny" | "ask", "deny" | "ask", "defined">;
+    }>>, Schemastery.ObjectT<NoInfer<{
+        read: z<"auto" | "ask", "auto" | "ask", "defined">;
+        test: z<"auto" | "ask", "auto" | "ask", "defined">;
+        build: z<"auto" | "ask", "auto" | "ask", "defined">;
+        workspaceWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        localCommit: z<"auto" | "ask", "auto" | "ask", "defined">;
+        externalWrite: z<"auto" | "ask", "auto" | "ask", "defined">;
+        gitPush: z<"auto" | "ask", "auto" | "ask", "defined">;
+        npmPublish: z<"auto" | "ask", "auto" | "ask", "defined">;
+        githubRelease: z<"auto" | "ask", "auto" | "ask", "defined">;
+        secrets: z<"deny" | "ask", "deny" | "ask", "defined">;
+        dangerFullAccess: z<"deny" | "ask", "deny" | "ask", "defined">;
+    }>>, "defined">;
+}>>, "plain">;
 import type { UserApprovalPolicy } from './approval-policy.js';
 /** Input shape accepted from the cordis row config (schema input side). */
 export interface BridgeConfigInput {

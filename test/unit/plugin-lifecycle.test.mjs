@@ -150,14 +150,18 @@ test('shared DSH host contracts are peers instead of ordinary dependencies', () 
   }
 });
 
-test('package manifest targets the verified DSH 0.1.1-rc.2 family', () => {
+test('package manifest pins the verified npm latest baseline without claiming other prereleases', () => {
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   for (const section of ['dependencies', 'devDependencies']) {
     for (const [packageName, version] of Object.entries(manifest[section] ?? {})) {
-      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.1.1-rc.2', `${section}.${packageName}`);
+      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.1.7-rc.2', `${section}.${packageName}`);
     }
   }
-  assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-llm'], '^0.1.1-rc.2');
+  for (const name of ['agent', 'agent-preset-registry', 'session', 'session-title', 'llm']) {
+    assert.equal(manifest.peerDependencies[`@deepseek-ai/dsh-${name}`], '0.1.7-rc.2');
+    assert.equal(manifest.dependencies[`@deepseek-ai/dsh-${name}`], undefined);
+  }
+  assert.equal(manifest.devDependencies['@deepseek-ai/cordis'], '4.0.4');
 });
 
 test('package.json and package-lock.json carry the same release version', () => {
@@ -172,6 +176,19 @@ test('test runner selects the Node 22 isolation spelling before running the suit
   const runner = readFileSync(new URL('../../scripts/test.mjs', import.meta.url), 'utf8');
   assert.match(runner, /nodeMajor === 22\s*\?\s*['"]--experimental-test-isolation=none['"]/);
   assert.doesNotMatch(runner, /result\.status\s*===\s*9/);
+});
+
+test('release gate covers installed tarball and all CI matrix entries', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const gate = readFileSync(new URL('../../scripts/release-package-test.mjs', import.meta.url), 'utf8');
+  assert.equal(manifest.scripts['test:release'], 'node scripts/release-package-test.mjs');
+  assert.match(workflow, /run: npm run test:release/);
+  assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
+  assert.match(workflow, /node: \[22, 24\]/);
+  assert.match(gate, /pack\.filename/);
+  assert.match(gate, /dsh-host\.test\.mjs/);
+  assert.match(gate, /dsh-cli\.test\.mjs/);
 });
 
 test('current README and Goal dogfood stay aligned with the shipped control-plane surface', () => {

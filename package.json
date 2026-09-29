@@ -1,6 +1,6 @@
 {
   "name": "dsh-chatgpt-bridge",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "MCP bridge: lets ChatGPT Web create, view, continue and control DeepSeek Harness (DSH) agent sessions through the official MCP protocol. The bridge only connects; DSH keeps its session, agent, tool, approval and workspace security model.",
   "type": "module",
   "main": "./lib/index.js",
@@ -19,6 +19,9 @@
     "cordis.patch.yml",
     "cordis.headless.patch.yml",
     "README.md",
+    "docs/dsh-compatibility-2026-09-07.md",
+    "docs/dsh-compatibility-2026-09-27.md",
+    "docs/dsh-compatibility-2026-09-28.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
@@ -60,6 +63,7 @@
     "build": "npm run build:server && npm run build:client",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node scripts/test.mjs",
+    "test:release": "node scripts/release-package-test.mjs",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('lib', { recursive: true, force: true })\"",
     "dogfood": "node scripts/dogfood.mjs",
     "dogfood:goal": "node scripts/goal-control-dogfood.mjs",
@@ -67,29 +71,34 @@
     "demo-flow": "node scripts/demo-flow.mjs"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-agent-presets": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-session-title": "0.1.1-rc.2",
-    "@deepseek-ai/schemastery": "3.18.1",
+    "@deepseek-ai/schemastery": "3.18.4",
     "@modelcontextprotocol/sdk": "1.30.0",
     "zod": "4.4.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2"
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-llm": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-agent": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.1.7-rc.2"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.1",
-    "@deepseek-ai/dsh-agent-default-model": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-session-persistence": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-session-projection": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-session-projection-cache": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-user-approval": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-user-questions": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-workspace": "0.1.1-rc.2",
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-agent-default-model": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-projection-cache": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-tool-todo": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-user-questions": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.1.7-rc.2",
     "@types/node": "^24.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "@deepseek-ai/dsh-agent": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.1.7-rc.2"
   }
 }

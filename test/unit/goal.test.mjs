@@ -152,7 +152,7 @@ test('mapWaitGoal: idle does not continue', () => {
 });
 
 test('mapWaitGoal: failed/cancelled/blocked/interrupted are terminal', () => {
-  for (const status of ['failed', 'cancelled', 'blocked', 'max-tokens', 'interrupted']) {
+  for (const status of ['failed', 'cancelled', 'blocked', 'max-tokens', 'interrupted', 'forked']) {
     const out = mapWaitGoal({
       sessionId: 's1',
       status,

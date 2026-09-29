@@ -10,6 +10,9 @@ import {
 } from '../../lib/web-gateway.js';
 
 test('compositionHasWebGateway sees api-gateway before it starts', () => {
+  assert.equal(compositionHasWebGateway({ get: () => ({ entries: () => [
+    { id: 'api-gateway', options: { name: '@deepseek-ai/dsh-api-gateway' } },
+  ] }) }), false);
   assert.equal(compositionHasWebGateway({ get: () => undefined }), false);
   assert.equal(compositionHasWebGateway({
     get: () => ({ entries: () => [{ id: 'workspace', options: { name: '@deepseek-ai/dsh-workspace' } }] }),

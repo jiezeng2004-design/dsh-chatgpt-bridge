@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.0 — Unreleased
+
+### Compatibility boundary
+
+- Target exactly DSH `0.1.7-rc.2` (npm latest at verification), Cordis 4.0.4
+  and Schemastery 3.18.4. Older hosts and `next=0.2.0-rc.1` are not supported.
+- Upgrade existing DSH profiles only with a separate backup/migration plan;
+  DSH owns V3 session migration, which a plugin downgrade cannot undo.
+
+### Changed
+
+- Use explicit Agent setup, the new preset registry and durable preset replay.
+- Read V3 persistence envelopes with guaranteed read-handle cleanup; derive
+  queued state from public Inbox lists and preserve the `forked` terminal state.
+- Use official `allowed-once` approval results and scoped question waterfalls.
+- Avoid duplicate storage/cache entries in the headless overlay.
+- Add packed-package installation and model-free official CLI/service tests
+  to every Windows/Linux, Node 22/24 CI job.
+
+### Verification boundary
+
+Local tests are not real-model, browser UI, ChatGPT or tunnel E2E proof.
+This candidate is unpublished and still requires exact-commit remote CI.
+See `docs/dsh-compatibility-2026-09-28.md` for detailed evidence.
+
 ## 0.5.1 — 2026-08-28
 
 Security and provenance patch for the v0.5 control plane, addressing all six

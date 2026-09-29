@@ -4,6 +4,7 @@
  * explicit budgets. Unit-testable with fixture events.
  */
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session';
+import type {} from '@deepseek-ai/dsh-tool-todo';
 
 /** One turn's span in the log. */
 export interface TurnSpan {

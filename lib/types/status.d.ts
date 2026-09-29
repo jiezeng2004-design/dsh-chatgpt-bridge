@@ -6,7 +6,7 @@
  */
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session';
 /** Bridge-level session status vocabulary. */
-export type BridgeStatus = 'idle' | 'queued' | 'running' | 'waiting_for_user' | 'waiting_for_approval' | 'completed' | 'failed' | 'cancelled' | 'blocked' | 'max-tokens' | 'interrupted' | 'unknown';
+export type BridgeStatus = 'idle' | 'queued' | 'running' | 'waiting_for_user' | 'waiting_for_approval' | 'completed' | 'failed' | 'cancelled' | 'blocked' | 'max-tokens' | 'interrupted' | 'forked' | 'unknown';
 export interface StatusInput {
     /** Whether the session is live in this process. */
     live?: boolean;

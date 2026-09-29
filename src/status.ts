@@ -19,6 +19,7 @@ export type BridgeStatus =
   | 'blocked' // last turn ended blocked (DSH turn-end reason)
   | 'max-tokens' // last turn ended max-tokens (DSH turn-end reason)
   | 'interrupted' // last turn ended interrupted (crash-orphan closed on reload)
+  | 'forked' // fork seed closes an inherited open turn; not task completion
   | 'unknown'; // session not live and has no persisted log
 
 export interface StatusInput {
@@ -63,7 +64,7 @@ export function deriveStatus(input: StatusInput): BridgeStatus {
     case 'aborted':
       return 'cancelled';
     default:
-      return last.reason.kind; // blocked | max-tokens | interrupted
+      return last.reason.kind; // blocked | max-tokens | interrupted | forked
   }
 }
 

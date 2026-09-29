@@ -280,15 +280,18 @@ test('R5 / A05: when approve is blocked by the platform layer, reject and stop s
   assert.equal(await parkedAgain, 'cancelled');
 });
 
-test('write approval distinguishes workspace paths from external paths', async () => {
+test('snapshot-only sessions distinguish workspace writes from external paths', async () => {
   const { bridge, agents } = makeStatefulBridge();
   const started = await bridge.startGoal({ workspace: 'ws-1', goal: 'Update one file' });
   const agent = agents.get(started.session_id);
+  const events = agent.session.events;
+  agent.session.snapshotEvents = () => events;
+  delete agent.session.events;
 
-  agent.session.events.push(fileToolCall(1, 'c-inside', 'write', { file_path: 'src/inside.ts', content: 'x' }));
-  assert.equal(await bridge.decideApproval({ agent, toolName: 'write', callId: 'c-inside' }), 'approved');
+  events.push(fileToolCall(1, 'c-inside', 'write', { file_path: 'src/inside.ts', content: 'x' }));
+  assert.equal(await bridge.decideApproval({ agent, toolName: 'write', callId: 'c-inside' }), 'allowed-once');
 
-  agent.session.events.push(fileToolCall(2, 'c-outside', 'write', { file_path: join('..', 'outside.ts'), content: 'x' }));
+  events.push(fileToolCall(2, 'c-outside', 'write', { file_path: join('..', 'outside.ts'), content: 'x' }));
   const parked = bridge.decideApproval({ agent, toolName: 'write', callId: 'c-outside' });
   const approvalId = await waitForApproval(bridge);
   const pending = bridge['approvals'].get(approvalId);
@@ -357,7 +360,7 @@ test('A11: a real approved publish records evidence independently from mutation 
   agent.session.events.push(toolCall(1, 'c-pub-approved', 'npm publish'));
   assert.equal(
     await bridge.decideApproval({ agent, toolName: 'bash', callId: 'c-pub-approved' }),
-    'approved',
+    'allowed-once',
   );
 
   agent.session.events.push(toolResult(2, 'c-pub-approved', 'dsh-chatgpt-bridge@0.5.0 published'));
@@ -421,7 +424,7 @@ test('A10: dsh_rerun_step invalidates the resolved test kind and permits a fresh
 
   agent.session.events.push(toolCall(3, 'c-test-second', 'npm test'));
   const outcome = await bridge.decideApproval({ agent, toolName: 'bash', callId: 'c-test-second' });
-  assert.equal(outcome, 'approved');
+  assert.equal(outcome, 'allowed-once');
 });
 
 test('R12 / A16: status exposes one folded Goal card after multiple real revisions', async () => {

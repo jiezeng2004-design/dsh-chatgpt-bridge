@@ -5,8 +5,8 @@
 # (`duplicate loader entry id: storage`) and is exactly why a dual-profile
 # boot cannot be "the same rows, later layer wins".
 #
-# Headless (no web-app) profiles should add those host rows in the profile's
-# own cordis.patch.yml — see README and cordis.headless.patch.yml.
+# DSH 0.1.7-rc.2 base-backed headless profiles already own storage/cache;
+# add only workspace via cordis.headless.patch.yml (never over Web).
 - insert:
     - id: chatgpt-bridge
       name: 'dsh-chatgpt-bridge'
