@@ -1,4 +1,4 @@
-# DSH latest compatibility — 2026-09-28 (unpublished)
+# DSH latest compatibility — 2026-09-28 (prepublication verification snapshot)
 
 ## Final target
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 — Unreleased
+## 0.6.0 — 2026-09-29
 
 ### Compatibility boundary
 
@@ -22,7 +22,8 @@
 ### Verification boundary
 
 Local tests are not real-model, browser UI, ChatGPT or tunnel E2E proof.
-This candidate is unpublished and still requires exact-commit remote CI.
+The exact release source passed Ubuntu/Windows × Node 22/24 CI, including
+installed-tarball and official DSH host contracts.
 See `docs/dsh-compatibility-2026-09-28.md` for detailed evidence.
 
 ## 0.5.1 — 2026-08-28

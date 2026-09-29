@@ -10,7 +10,7 @@
 
 **The bridge connects the two sides. It does not replace DSH, modify DSH core, or route DSH model traffic through ChatGPT.**
 
-Published package: **v0.5.1** for DSH **0.1.1-rc.2**. The **unpublished v0.6.0 candidate** targets npm `latest` DSH **0.1.7-rc.2** exactly (a release candidate). The upstream `next=0.2.0-rc.1` is outside this candidate's tested range. After a successful connection, ChatGPT should see **tool count = 23**. See the [compatibility evidence](docs/dsh-compatibility-2026-09-28.md) and [release candidate scope](docs/release-candidate-0.6.0.md).
+Version **0.6.0** targets DSH **0.1.7-rc.2** exactly (the official npm `latest` at verification, itself a release candidate). Other DSH channels are outside this version's tested range. After a successful connection, ChatGPT should see **tool count = 23**. See the [compatibility evidence](docs/dsh-compatibility-2026-09-28.md).
 
 ## Why this exists
 
@@ -67,19 +67,19 @@ The screenshot is from a real DSH Web installation with sensitive values masked.
 ### Requirements
 
 - Node.js 22+
-- a working DeepSeek Harness installation (`dsh` on `PATH`)
+- DeepSeek Harness `0.1.7-rc.2` (`dsh` on `PATH`)
 - a DSH Web profile/runtime
 - ChatGPT access that can use the currently supported MCP/custom-app connection flow
 
 ### 1. Install the plugin
 
-For the published v0.5.1 package, use its matching DSH 0.1.1-rc.2 host:
+Install v0.6.0 into the matching DSH 0.1.7-rc.2 host:
 
 ```bash
-dsh plugin --profile web add dsh-chatgpt-bridge@0.5.1
+dsh plugin --profile web add dsh-chatgpt-bridge@0.6.0
 ```
 
-For the unpublished v0.6.0 candidate, use a reviewed checkout with DSH 0.1.7-rc.2:
+To install from a reviewed source checkout instead:
 
 ```bash
 npm ci
@@ -90,7 +90,7 @@ npm run test:release
 pnpm dlx @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web add "file:$PWD"
 ```
 
-These commands are instructions; source installation into a real profile was not part of candidate verification. Back up the profile before upgrading DSH: DSH owns V3 session migration. The candidate is not available from npm or a release tag yet. `npm install dsh-chatgpt-bridge` alone is not enough: the plugin must be added to a DSH profile bundle.
+Source installation into a real profile was not part of release verification. Back up the profile before upgrading DSH: DSH owns V3 session migration. `npm install dsh-chatgpt-bridge` alone is not enough: the plugin must be added to a DSH profile bundle. Published v0.5.1 remains tied to the older DSH 0.1.1-rc.2 host.
 
 ### 2. Start DSH Web
 
@@ -152,7 +152,7 @@ After connecting, refresh/rescan the MCP tools in ChatGPT and run a read-only ch
 A healthy first check should look like:
 
 ```text
-bridge version = 0.5.1 (published package) or 0.6.0 (local candidate)
+bridge version = 0.6.0
 tool count = 23
 ```
 
@@ -233,13 +233,13 @@ Restart/upgrade the plugin as needed, then refresh/rescan the MCP tools on the C
 
 This is an actively maintained, independent DSH plugin. Compatibility releases track DeepSeek Harness changes while preserving the bridge's MCP/tool semantics and security boundaries.
 
-Latest published package:
+Current source version:
 
 ```text
-dsh-chatgpt-bridge@0.5.1
+dsh-chatgpt-bridge@0.6.0
 ```
 
-The **unpublished v0.6.0 candidate** targets DSH **0.1.7-rc.2**. Its local gates cover Windows/Node 24 unit tests, an installed tarball, and a model-free official DSH CLI/Web/MCP integration. The updated CI checks Ubuntu and Windows with Node 22 and 24; those remote results must be checked for the candidate commit. Browser UI, real-model work, ChatGPT and tunnel end-to-end were not verified in this candidate.
+Compatibility: **v0.6.0 → DSH 0.1.7-rc.2**. The exact release commit passed Ubuntu and Windows CI on Node 22 and 24, including a packed-package install and model-free official DSH CLI/Web/MCP integration. Browser UI, real-model work, ChatGPT and tunnel end-to-end remain unverified for this version. The older published v0.5.1 package targets DSH 0.1.1-rc.2.
 
 Distribution and ecosystem listings:
 
@@ -260,7 +260,7 @@ The bridge is a standalone DSH plugin with no DSH core modifications. Developmen
 - process-ownership safety;
 - regression and compatibility testing across supported DSH releases.
 
-For the v0.6.0 candidate, run `npm run typecheck`, `npm run build`, `npm test` and `npm run test:release`. The last command installs the actual tarball and exact DSH host in a disposable directory.
+Before publishing a new version, run `npm run typecheck`, `npm run build`, `npm test` and `npm run test:release`. The last command installs the actual tarball and exact DSH host in a disposable directory.
 
 ## License
 
