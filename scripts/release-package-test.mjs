@@ -12,10 +12,10 @@ const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const npmCli = process.env.npm_execpath;
 assert.ok(npmCli && existsSync(npmCli), 'Run through npm run test:release');
 const temp = realpathSync(mkdtempSync(join(tmpdir(), 'bridge-release-')));
-function run(args, cwd, capture = false) {
+function run(args, cwd, capture = false, timeoutMs = 300000) {
   const result = spawnSync(process.execPath, args, {
     cwd, encoding: 'utf8', windowsHide: true,
-    stdio: capture ? 'pipe' : 'inherit', timeout: 300000,
+    stdio: capture ? 'pipe' : 'inherit', timeout: timeoutMs,
   });
   if (result.error) throw result.error;
   assert.equal(result.status, 0, `Subprocess failed: ${args[0]} (exit ${result.status})`);
@@ -31,8 +31,10 @@ try {
   }
   const hostVersion = manifest.peerDependencies['@deepseek-ai/dsh-agent'];
   assert.match(hostVersion, /^\d+\.\d+\.\d+-rc\.\d+$/);
+  // Fresh Windows runners can need more than five minutes to fetch the full
+  // official host graph. Keep the contract-test subprocess on the short limit.
   run([npmCli, 'install', '--prefix', temp, '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
-    join(temp, pack.filename), `@deepseek-ai/dsh@${hostVersion}`], temp);
+    join(temp, pack.filename), `@deepseek-ai/dsh@${hostVersion}`], temp, false, 600000);
   const installed = join(temp, 'node_modules', manifest.name);
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'))).version, manifest.version);
   // Tests resolve both ../../lib and official dependencies from the installed
