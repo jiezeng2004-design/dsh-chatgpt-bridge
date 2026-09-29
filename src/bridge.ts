@@ -1216,6 +1216,19 @@ export class Bridge {
             `request_id "${input.request_id}" was already used with different start_goal arguments`,
           );
         }
+        // Authorization check: the caller must actually have access to the
+        // workspace that owns this session before the cached result is reused.
+        const requestedWorkspace = await this.resolveWorkspace(input.workspace);
+        const owningAgent = this.ctx.agents.list().find((agent) => agent.id === existing.sessionId);
+        if (
+          owningAgent === undefined ||
+          !pathsEqual(owningAgent.session.header?.cwd ?? '', requestedWorkspace.path)
+        ) {
+          throw new BridgeError(
+            'REQUEST_ID_CONFLICT',
+            `request_id "${input.request_id}" does not match an accessible session`,
+          );
+        }
         this.adopt(existing.sessionId);
         const view = await this.loadView(existing.sessionId);
         return {
