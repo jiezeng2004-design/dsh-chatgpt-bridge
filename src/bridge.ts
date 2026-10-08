@@ -1216,21 +1216,30 @@ export class Bridge {
             `request_id "${input.request_id}" was already used with different start_goal arguments`,
           );
         }
-        // Authorization check: the caller must actually have access to the
-        // workspace that owns this session before the cached result is reused.
+        // Workspace consistency check: a cached request_id must still resolve
+        // to a session (live or persisted) whose workspace matches the one
+        // named in this retry, so a stale/relocated workspace registration
+        // can't silently swap in a different session's cached result.
         const requestedWorkspace = await this.resolveWorkspace(input.workspace);
-        const owningAgent = this.ctx.agents.list().find((agent) => agent.id === existing.sessionId);
-        if (
-          owningAgent === undefined ||
-          !pathsEqual(owningAgent.session.header?.cwd ?? '', requestedWorkspace.path)
-        ) {
+        let view: LoadedView;
+        try {
+          view = await this.loadView(existing.sessionId);
+        } catch (error) {
+          if (error instanceof BridgeError && error.code === 'SESSION_NOT_FOUND') {
+            throw new BridgeError(
+              'REQUEST_ID_CONFLICT',
+              `request_id "${input.request_id}" does not match an accessible session`,
+            );
+          }
+          throw error;
+        }
+        if (!pathsEqual(view.header?.cwd ?? '', requestedWorkspace.path)) {
           throw new BridgeError(
             'REQUEST_ID_CONFLICT',
             `request_id "${input.request_id}" does not match an accessible session`,
           );
         }
         this.adopt(existing.sessionId);
-        const view = await this.loadView(existing.sessionId);
         return {
           ...(await this.mapGoalStart(existing.sessionId, view)),
           existing_goal_reused: true,
