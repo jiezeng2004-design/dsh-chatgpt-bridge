@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — DSH 0.2.0-rc.2
+
+- Pin DSH peer and development dependencies to the exact 0.2.0-rc.2 host.
+- Update lifecycle assertions and both lockfiles for that host graph.
+- Allow the settings form to save or clear an empty Tunnel ID while retaining
+  validation of every nonempty ID; unconfigured proxy settings can be saved.
+- Verify typecheck/build, 400 passing tests (one Windows-only POSIX skip),
+  and real installed-tarball CLI/Web/MCP plus session lifecycle integration.
+- Verify the actual browser settings page, dirty-edit polling, local save,
+  reload persistence and restoration of the original proxy value.
+- Package version remains 0.6.0; these changes are not a published release.
+  Real models, public tunnels and ChatGPT remain separate acceptance gates.
+
 ## 0.6.0 — 2026-09-29
 
 ### Compatibility boundary

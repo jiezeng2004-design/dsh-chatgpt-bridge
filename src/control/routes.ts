@@ -99,7 +99,9 @@ function sanitizeConfig(raw: unknown): Partial<RuntimeConfig> {
     } else if (tunnel.executable === null) {
       t.executable = undefined;
     }
-    if (typeof tunnel.tunnelId === 'string') t.tunnelId = sanitizeIdentifier(tunnel.tunnelId, 256);
+    // The settings form sends an empty ID before setup and when clearing it.
+    // Preserve that explicit unconfigured state; validate every nonempty ID.
+    if (typeof tunnel.tunnelId === 'string') t.tunnelId = tunnel.tunnelId === '' ? '' : sanitizeIdentifier(tunnel.tunnelId, 256);
     if (typeof tunnel.profileName === 'string') t.profileName = sanitizeIdentifier(tunnel.profileName, 128);
     if (typeof tunnel.autoStart === 'boolean') t.autoStart = tunnel.autoStart;
     const proxy = tunnel.proxy as Record<string, unknown> | undefined;

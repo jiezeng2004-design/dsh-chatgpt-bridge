@@ -200,6 +200,31 @@ test('routes: GET /config includes discovered hints and never leaks profile secr
   assert.ok(!Object.prototype.hasOwnProperty.call(body.discovered, 'api_key'));
 });
 
+test('routes: settings save can clear Tunnel ID while malformed nonempty IDs remain denied', async () => {
+  const { manager, getRoute } = await setup();
+  const form = {
+    tunnel: { tunnelId: '', autoStart: false, executable: '', proxy: { enabled: true, host: '127.0.0.1', port: 7892 } },
+    openai: { controlPlaneBaseUrl: '' },
+  };
+  const saved = await call(getRoute(), makeReq({
+    ...validMutation('/_dsh/chatgpt-bridge/config', JSON.stringify(form)), method: 'PUT',
+  }), makeRes());
+  assert.equal(saved.statusCode, 200);
+  assert.equal(JSON.parse(saved.body).ok, true);
+  assert.equal(manager.getConfig().tunnel.tunnelId, '');
+  assert.equal(manager.getConfig().tunnel.autoStart, false);
+  assert.deepEqual(manager.getConfig().tunnel.proxy, { enabled: true, host: '127.0.0.1', port: 7892 });
+  assert.equal(manager.getConfig().openai.controlPlaneBaseUrl, undefined);
+  for (const tunnelId of [' ', '../tunnel', 'tunnel\ninvalid']) {
+    const rejected = await call(getRoute(), makeReq({
+      ...validMutation('/_dsh/chatgpt-bridge/config', JSON.stringify({ tunnel: { tunnelId } })), method: 'PUT',
+    }), makeRes());
+    assert.equal(rejected.statusCode, 400);
+    assert.equal(JSON.parse(rejected.body).error, 'invalid-identifier');
+    assert.equal(manager.getConfig().tunnel.tunnelId, '');
+  }
+});
+
 test('routes: GET /config never leaks the key value', async () => {
   const { getRoute } = await setup();
   const res = await call(getRoute(), makeReq({ url: '/_dsh/chatgpt-bridge/config' }), makeRes());
