@@ -17,6 +17,20 @@ export interface ControlLogger {
     warn(message: string): void;
     error(message: string): void;
 }
+/** Last non-empty line of a child-process chunk, redacted and length-capped for error messages. */
+export declare function lastChildLine(chunk: Buffer): string | undefined;
+/**
+ * Explain a missing health URL with the child's own last words when we have them.
+ *
+ * A tunnel-client that rejects the plugin's argv (for example the reduced
+ * `tunnel-client-runtime` build, which does not accept `--admin-ui.log-buffer-events`)
+ * exits immediately. Reporting only "did not report a health URL in time" hides
+ * that, and reads like a network or credential problem.
+ */
+export declare function startupFailureDetail(exitStatus: {
+    code: number | null;
+    signal: NodeJS.Signals | null;
+} | undefined, lastStderrLine: string | undefined): string;
 export interface ProcessTunnelRuntimeOptions {
     logger?: ControlLogger;
     /** Injectable spawn for tests. */

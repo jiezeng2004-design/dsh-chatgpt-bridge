@@ -13,6 +13,7 @@ import { get as httpGet } from 'node:http';
 import { get as httpsGet } from 'node:https';
 
 import { normalizeSocketHostname } from '../config.js';
+import { redactText } from '../redact.js';
 import {
   createProcessIdentity,
   isProcessAlive,
@@ -35,6 +36,35 @@ export interface ControlLogger {
   info(message: string): void;
   warn(message: string): void;
   error(message: string): void;
+}
+
+/** Last non-empty line of a child-process chunk, redacted and length-capped for error messages. */
+export function lastChildLine(chunk: Buffer): string | undefined {
+  const lines = chunk
+    .toString('utf8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  const last = lines.at(-1);
+  return last === undefined ? undefined : redactText(last).slice(0, 300);
+}
+
+/**
+ * Explain a missing health URL with the child's own last words when we have them.
+ *
+ * A tunnel-client that rejects the plugin's argv (for example the reduced
+ * `tunnel-client-runtime` build, which does not accept `--admin-ui.log-buffer-events`)
+ * exits immediately. Reporting only "did not report a health URL in time" hides
+ * that, and reads like a network or credential problem.
+ */
+export function startupFailureDetail(
+  exitStatus: { code: number | null; signal: NodeJS.Signals | null } | undefined,
+  lastStderrLine: string | undefined,
+): string {
+  const parts = ['tunnel-client did not report a health URL in time'];
+  if (exitStatus !== undefined) parts.push(`exit=${exitStatus.code} signal=${String(exitStatus.signal)}`);
+  if (lastStderrLine !== undefined) parts.push(`last stderr: ${lastStderrLine}`);
+  return parts.join('; ');
 }
 
 export interface ProcessTunnelRuntimeOptions {
@@ -224,18 +254,27 @@ export class ProcessTunnelRuntime implements TunnelRuntime {
       this.handle = undefined;
       throw new RuntimeError('tunnel-spawn-failed', 'child process pid unavailable', 'tunnel');
     }
+    let exitStatus: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    let lastStderrLine: string | undefined;
     child.once('exit', (code, signal) => {
+      exitStatus = { code, signal };
       this.logger.warn(`tunnel-client exited code=${code} signal=${String(signal)}`);
     });
     child.stdout?.on('data', (chunk: Buffer) => this.logLine('info', chunk));
-    child.stderr?.on('data', (chunk: Buffer) => this.logLine('warn', chunk));
+    child.stderr?.on('data', (chunk: Buffer) => {
+      this.logLine('warn', chunk);
+      lastStderrLine = lastChildLine(chunk) ?? lastStderrLine;
+    });
     // Wait for the health URL file (loopback discovery). A timeout still
     // stops through the ownership-verified path — never skip identity checks
     // just because this is a process we just spawned.
     const healthBase = await this.waitForHealthUrl(config.healthUrlFile, this.healthUrlTimeoutMs);
     if (healthBase === undefined) {
+      // Capture the child's own failure story before cleanup: stopping the owned
+      // process overwrites the exit status observers we rely on here.
+      const detail = startupFailureDetail(exitStatus, lastStderrLine);
       await this.stopOwned(handle);
-      throw new RuntimeError('tunnel-health-url-timeout', 'tunnel-client did not report a health URL in time', 'tunnel');
+      throw new RuntimeError('tunnel-health-url-timeout', detail, 'tunnel');
     }
     this.healthBaseUrl = healthBase;
     this.logger.info(`tunnel health base: ${healthBase}`);
