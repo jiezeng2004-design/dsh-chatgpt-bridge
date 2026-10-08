@@ -154,11 +154,11 @@ test('package manifest pins the verified npm latest baseline without claiming ot
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   for (const section of ['dependencies', 'devDependencies']) {
     for (const [packageName, version] of Object.entries(manifest[section] ?? {})) {
-      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.1.7-rc.2', `${section}.${packageName}`);
+      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.2.0-rc.2', `${section}.${packageName}`);
     }
   }
   for (const name of ['agent', 'agent-preset-registry', 'session', 'session-title', 'llm']) {
-    assert.equal(manifest.peerDependencies[`@deepseek-ai/dsh-${name}`], '0.1.7-rc.2');
+    assert.equal(manifest.peerDependencies[`@deepseek-ai/dsh-${name}`], '0.2.0-rc.2');
     assert.equal(manifest.dependencies[`@deepseek-ai/dsh-${name}`], undefined);
   }
   assert.equal(manifest.devDependencies['@deepseek-ai/cordis'], '4.0.4');

@@ -10,7 +10,7 @@
 
 **The bridge connects the two sides. It does not replace DSH, modify DSH core, or route DSH model traffic through ChatGPT.**
 
-Version **0.6.0** targets DSH **0.1.7-rc.2** exactly (the official npm `latest` at verification, itself a release candidate). Other DSH channels are outside this version's tested range. After a successful connection, ChatGPT should see **tool count = 23**. See the [compatibility evidence](docs/dsh-compatibility-2026-09-28.md).
+Published **0.6.0** targets DSH **0.1.7-rc.2** exactly. The unpublished working tree now targets **0.2.0-rc.2**, with local tests and packed official CLI/Web/MCP acceptance passing on 2026-10-08. The package version has not been bumped or republished. See the [current compatibility evidence](docs/dsh-compatibility-2026-10-08.md) and [published-release evidence](docs/dsh-compatibility-2026-09-28.md). After a successful connection, ChatGPT should see **tool count = 23**.
 
 ## Why this exists
 
@@ -87,7 +87,7 @@ npm run typecheck
 npm run build
 npm test
 npm run test:release
-pnpm dlx @deepseek-ai/dsh@0.1.7-rc.2 plugin --profile web add "file:$PWD"
+pnpm dlx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add "file:$PWD"
 ```
 
 Source installation into a real profile was not part of release verification. Back up the profile before upgrading DSH: DSH owns V3 session migration. `npm install dsh-chatgpt-bridge` alone is not enough: the plugin must be added to a DSH profile bundle. Published v0.5.1 remains tied to the older DSH 0.1.1-rc.2 host.

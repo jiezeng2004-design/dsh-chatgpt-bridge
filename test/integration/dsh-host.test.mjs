@@ -1,4 +1,4 @@
-// Run in a disposable copy with @deepseek-ai/dsh@0.1.7-rc.2 installed.
+// Run in a disposable copy with @deepseek-ai/dsh@0.2.0-rc.2 installed.
 // Real Cordis, AgentLoop, V3 JSONL, approvals and questions; no credentials or model adapter.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
