@@ -234,8 +234,15 @@ function makeLiveAgent(id, workspacePath, extras = {}) {
 
 function makeStatefulBridge() {
   const agents = new Map();
+  // Snapshots survive even after a session is dropped from the live `agents`
+  // map, so tests can simulate a persisted-but-not-live session (e.g. after
+  // a restart) independently of liveness.
+  const persistedSnapshots = new Map();
   const created = [];
   const workspace = { ...MIX, attachSession: async () => {}, sessionIds: [] };
+  const snapshot = (agent) => {
+    persistedSnapshots.set(agent.id, { meta: agent.session.header, events: agent.session.events });
+  };
   const agentsApi = {
     get: (id) => agents.get(id),
     list: () => [...agents.values()],
@@ -243,6 +250,7 @@ function makeStatefulBridge() {
       created.push(sessionId);
       const agent = makeLiveAgent(sessionId, meta.cwd);
       agents.set(sessionId, agent);
+      snapshot(agent);
       return { agent };
     },
     resume: async ({ resumeSessionId }) => {
@@ -250,15 +258,16 @@ function makeStatefulBridge() {
       if (existing) return { agent: existing };
       const agent = makeLiveAgent(resumeSessionId, MIX.path);
       agents.set(resumeSessionId, agent);
+      snapshot(agent);
       return { agent };
     },
   };
   const persistence = {
-    list: async () => [...agents.values()].map((agent) => agent.session.header),
+    list: async () => [...persistedSnapshots.values()].map((entry) => entry.meta),
     inspect: async (id) => {
-      const agent = agents.get(id);
-      if (agent === undefined) throw new Error('missing');
-      return { meta: agent.session.header, events: agent.session.events };
+      const entry = persistedSnapshots.get(id);
+      if (entry === undefined) throw new Error('missing');
+      return entry;
     },
   };
   const title = { rename() {}, get: () => undefined };
@@ -269,7 +278,7 @@ function makeStatefulBridge() {
     persistence,
     title,
   });
-  return { bridge, agents, created, workspace };
+  return { bridge, agents, persistedSnapshots, created, workspace };
 }
 
 test('createSession uses agents.create + attachSession (Case 1 path)', async () => {
@@ -303,6 +312,30 @@ test('startGoal request_id is idempotent and conflicts on different args', async
     (error) => error.code === 'REQUEST_ID_CONFLICT',
   );
   assert.equal(created.length, 1);
+});
+
+test('startGoal request_id retry succeeds for a persisted session with no live agent', async () => {
+  const { bridge, agents } = makeStatefulBridge();
+  const first = await bridge.startGoal({ workspace: 'ws-1', goal: 'g', request_id: 'req-1' });
+  // Simulate the process restarting: the session is no longer live, but its
+  // persisted snapshot (header.cwd included) is still readable.
+  agents.delete(first.session_id);
+  const retry = await bridge.startGoal({ workspace: 'ws-1', goal: 'g', request_id: 'req-1' });
+  assert.equal(retry.session_id, first.session_id);
+  assert.equal(retry.existing_goal_reused, true);
+});
+
+test('startGoal request_id retry is rejected when the resolved workspace no longer matches the session', async () => {
+  const { bridge, workspace } = makeStatefulBridge();
+  const first = await bridge.startGoal({ workspace: 'ws-1', goal: 'g', request_id: 'req-1' });
+  assert.equal(first.existing_goal_reused, undefined);
+  // Simulate the workspace registration being relocated to a different path
+  // while keeping the same id, so the session's persisted cwd goes stale.
+  workspace.path = 'D:\\Relocated\\mix_workspace';
+  await assert.rejects(
+    () => bridge.startGoal({ workspace: 'ws-1', goal: 'g', request_id: 'req-1' }),
+    (error) => error.code === 'REQUEST_ID_CONFLICT',
+  );
 });
 
 test('waitGoal still-running returns after bound with continuation (Case 3)', async () => {
