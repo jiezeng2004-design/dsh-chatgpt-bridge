@@ -73,7 +73,7 @@
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "3.18.4",
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.4.3"
   },
   "peerDependencies": {
