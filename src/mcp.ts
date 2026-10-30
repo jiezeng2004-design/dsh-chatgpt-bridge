@@ -74,7 +74,18 @@ function safe<A>(handler: (args: A) => Promise<unknown>) {
 export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger): McpServer {
   const server = new McpServer(
     { name: BRIDGE_NAME, version: BRIDGE_VERSION },
-    { capabilities: { tools: {} } },
+    {
+      capabilities: { tools: {} },
+      // GHSA-46jr-4wx8-v453 / CVE-2026-111768: @modelcontextprotocol/sdk
+      // validates every element of an array or record tool argument and its
+      // ceiling is OFF BY DEFAULT even at 1.32.2, so a version bump alone
+      // leaves tool input unbounded. This server's widest declared input is
+      // constraintSchema.allowed_actions / forbidden_actions (and the question
+      // `selected` array) over an enum of 20 action classes; 10,000 is 500x
+      // that, so a real call never approaches it and a hostile one is refused
+      // before validation walks the array.
+      maxToolInputElements: 10_000,
+    },
   );
 
   server.registerTool(
