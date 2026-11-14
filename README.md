@@ -185,6 +185,35 @@ For a safe first run, start with a read-only Goal:
 - 等待目标结束后只汇报结果，不修改任何文件
 ```
 
+## Advisor mode (unreleased)
+
+Advisor mode reverses the roles: **DSH executes, ChatGPT plans and reviews**. ChatGPT gets read-only access to a registered workspace and a small task loop; it cannot create sessions, send messages, approve, edit files, run commands or commit. It is in the working tree only — not in any published release — and has not yet been tested against real ChatGPT or a real tunnel.
+
+Enable it in your profile's `cordis.patch.yml` and restart DSH:
+
+```yaml
+config:
+  mode: advisor            # default: controller (the 23 tools above, unchanged)
+  advisorMaxIterations: 12 # plan/execute rounds per task, 1–50
+```
+
+In advisor mode ChatGPT sees **12 tools** instead of 23:
+
+- `dsh_health`, `dsh_list_workspaces`
+- read-only data plane: `dsh_advisor_workspace_info`, `dsh_advisor_list_dir`, `dsh_advisor_read_file`, `dsh_advisor_search`, `dsh_advisor_git_status`, `dsh_advisor_git_diff`
+- loop: `dsh_advisor_wait_request`, `dsh_advisor_submit_plan`, `dsh_advisor_submit_verdict`, `dsh_advisor_test_status`
+
+The DSH agent gets `advisor_init`, `advisor_get_plan`, `advisor_executed` and `advisor_handoff`, plus a bundled `chatgpt-advisor` skill that describes the loop. Ask the agent to "plan this with ChatGPT", then in ChatGPT ask it to pick up the DSH request.
+
+Boundaries:
+
+- The data plane only opens DSH-registered workspaces, rejects absolute and `..` paths, checks realpath containment against symlink escapes, and refuses sensitive files (`.env*` except `.env.example`, keys, certificates, credentials, `.git` internals, plus your own `.dshadvisorignore`). Reads, listings, searches and diffs are size-bounded and redacted.
+- Control messages carry status only (goal, plan items, test results, changed-file count, short summaries), never file contents, diffs or logs. Every field is at most 2 KB.
+- Each long-poll waits at most 100 s, under the tunnel's 120 s request limit.
+- Custom MCP connections in ChatGPT are documented by OpenAI for **Business** and **Enterprise/Edu** on ChatGPT web (on Business, only admins/owners can create them). Availability on personal plans, and whether ChatGPT asks to confirm `submit_plan`/`submit_verdict`, is not verified. Check [OpenAI's current help article](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt).
+
+Protocol, state machine and limits: [docs/advisor-protocol.md](docs/advisor-protocol.md).
+
 ## Security model
 
 This is a **control bridge**, not a remote shell replacement.
