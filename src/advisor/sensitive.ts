@@ -23,7 +23,9 @@ export function globRegex(pattern: string, ignoreCase = true): RegExp {
 export function isSensitivePath(relPath: string, extraMatcher?: ExtraMatcher): boolean {
   const path = relPath.replace(/\\/g, '/').toLowerCase();
   const parts = path.split('/').filter((part) => part !== '' && part !== '.');
-  if (parts.some((part) => (part === '.env' || part.startsWith('.env.')) && part !== '.env.example')) return true;
+  // Every `.env`-prefixed name (.env, .env.local, .envrc, .env-production,
+  // .env_dev …) is secret-bearing; only the documented example is allowed.
+  if (parts.some((part) => part.startsWith('.env') && part !== '.env.example')) return true;
   if (parts.some((part) => ['.git', '.ssh', '.aws', '.azure', '.gnupg', '.kube', '.docker'].includes(part))) return true;
   if (parts.some((part, i) => part === '.config' && parts[i + 1] === 'gcloud')) return true;
   const base = parts.at(-1) ?? '';

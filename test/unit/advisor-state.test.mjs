@@ -132,8 +132,31 @@ test('advisor state: concurrent submissions serialize; broadcast requests are no
   assert.ok(failure instanceof BridgeError);
   assert.ok(['STALE_ITERATION', 'INVALID_STATE'].includes(failure.code));
   const claims = await Promise.all([store.getPlan({ task_id, wait_ms: 50 }), store.getPlan({ task_id, wait_ms: 50 })]);
-  assert.equal(claims.filter((r) => r.plan).length, 1);
-  assert.equal(claims.filter((r) => r.waiting && r.state === 'EXECUTING').length, 1);
+  // Exactly one call performs the PLAN -> EXECUTING claim; the other gets the
+  // same plan re-delivered instead of being left without instructions.
+  assert.equal(claims.filter((r) => r.plan && !r.redelivered).length, 1);
+  assert.equal(claims.filter((r) => r.plan && r.redelivered === true).length, 1);
+  assert.deepEqual(claims[0].plan, claims[1].plan);
+});
+
+test('advisor state: a lost get_plan response is recoverable, also after reopening the store', async (t) => {
+  const { store, dir } = await fixture(t);
+  const { task_id } = await create(store);
+  await store.submitPlan({ task_id, iteration: 1, ...plan });
+  const first = await store.getPlan({ task_id, wait_ms: 50 });
+  assert.equal(first.redelivered, undefined);
+  // The executor never saw `first`. Retrying returns the same plan.
+  const again = await store.getPlan({ task_id, wait_ms: 50 });
+  assert.deepEqual(again, { task_id, iteration: 1, plan: first.plan, redelivered: true });
+  await check(store, task_id, 'EXECUTING', 1, dir);
+  await store.close();
+  // DSH restarted after the claim was persisted.
+  const reopened = await AdvisorStore.open({ dir });
+  t.after(() => reopened.close());
+  assert.deepEqual(await reopened.getPlan({ task_id, wait_ms: 50 }), { task_id, iteration: 1, plan: first.plan, redelivered: true });
+  // Re-delivery does not change state; reporting still works normally.
+  await reopened.reportExecuted({ task_id, iteration: 1, changed_files_count: 0, tests: [], summary: 'Done.' });
+  assert.equal((await reopened.getTask(task_id)).state, 'EXECUTED');
 });
 
 test('advisor state: polling timeouts, default/capped waits and PLAN wakeup', async (t) => {
@@ -294,12 +317,18 @@ test('advisor state: close promptly resolves every waiter and rejects subsequent
   const { task_id } = await create(store);
   await store.submitPlan({ task_id, iteration: 1, ...plan });
   await store.getPlan({ task_id });
-  const waits = [store.waitRequest({ wait_ms: 100_000 }), store.waitRequest({ task_id, wait_ms: 100_000 }),
-    store.getPlan({ task_id, wait_ms: 100_000 })];
+  // A second task that has been executed waits on a real long-poll for its
+  // review verdict (an EXECUTING task would get its plan re-delivered at once).
+  const reviewed = await create(store);
+  await store.submitPlan({ task_id: reviewed.task_id, iteration: 1, ...plan });
+  await store.getPlan({ task_id: reviewed.task_id });
+  await store.reportExecuted({ task_id: reviewed.task_id, iteration: 1, changed_files_count: 0, tests: [], summary: 'Done.' });
+  const waits = [store.waitRequest({ task_id, wait_ms: 100_000 }), store.waitRequest({ task_id, wait_ms: 100_000 }),
+    store.getPlan({ task_id: reviewed.task_id, wait_ms: 100_000 })];
   await delay(10);
   await store.close();
   const result = await Promise.race([Promise.all(waits), delay(200).then(() => 'timeout')]);
-  assert.deepEqual(result, [{ idle: true }, { idle: true }, { task_id, waiting: true, state: 'EXECUTING' }]);
+  assert.deepEqual(result, [{ idle: true }, { idle: true }, { task_id: reviewed.task_id, waiting: true, state: 'EXECUTED' }]);
   await assert.rejects(store.handoff({ task_id, reason: 'Help' }), code('STORE_CLOSED'));
   assert.deepEqual(await store.waitRequest(), { idle: true });
   await store.close();

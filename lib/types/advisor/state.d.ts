@@ -94,6 +94,7 @@ export type AdvisorPlanResult = {
     task_id: string;
     iteration: number;
     plan: AdvisorPlan;
+    redelivered?: true;
 } | {
     task_id: string;
     state: AdvisorState;

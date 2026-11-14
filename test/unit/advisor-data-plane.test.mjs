@@ -13,7 +13,7 @@ import { isSensitivePath, loadSensitiveMatcher } from '../../lib/advisor/sensiti
 
 const log = { debug() {}, info() {}, warn() {}, error() {} };
 const toolNames = ['workspace_info', 'list_dir', 'read_file', 'search', 'git_status', 'git_diff'].map((name) => `dsh_advisor_${name}`);
-const deniedPaths = ['.env', '.env.local', '.ENV', 'id_rsa', 'key.pem', '.ssh/config', '.git/config', '.npmrc', 'private/note.txt'];
+const deniedPaths = ['.env', '.env.local', '.ENV', '.envrc', '.env-production', '.env_dev', 'config/.Envrc', 'id_rsa', 'key.pem', '.ssh/config', '.git/config', '.npmrc', 'private/note.txt'];
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-advisor-'));

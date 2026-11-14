@@ -78,7 +78,7 @@ export interface SubmitAdvisorVerdictInput {
   plan?: AdvisorPlan;
 }
 export type AdvisorPlanResult =
-  | { task_id: string; iteration: number; plan: AdvisorPlan }
+  | { task_id: string; iteration: number; plan: AdvisorPlan; redelivered?: true }
   | { task_id: string; state: AdvisorState; terminal: true; verdict?: AdvisorVerdict; blocked_reason?: string; error?: string }
   | { task_id: string; state: AdvisorState; waiting: true };
 export type AdvisorRequestResult = { request: AdvisorRequest } | { idle: true };
@@ -469,6 +469,14 @@ export class AdvisorStore {
         ...(task.state === 'DONE' ? { verdict: 'done' as const } : task.state === 'BLOCKED' ? { verdict: 'blocked' as const } : {}),
         ...(task.blocked_reason === undefined ? {} : { blocked_reason: task.blocked_reason }),
         ...(task.error === undefined ? {} : { error: task.error }) };
+      // Re-delivery: the PLAN -> EXECUTING transition is persisted before the
+      // response reaches the executor. If that response is lost (dropped call,
+      // DSH restart), the owner must still be able to fetch its instructions,
+      // so a task already EXECUTING returns the same plan again. Ownership is
+      // enforced by the agent-tool layer (TASK_NOT_OWNED).
+      if (task.state === 'EXECUTING' && task.plan) {
+        return { task_id: id, iteration: task.iteration, plan: structuredClone(task.plan), redelivered: true as const };
+      }
       if (task.state !== 'PLAN') return undefined;
       const next = structuredClone(task);
       next.state = 'EXECUTING';

@@ -12,7 +12,7 @@ In advisor mode ChatGPT plans and reviews, and **you execute**. ChatGPT can only
 1. **Start.** Call `advisor_init` with the user's goal (one or two sentences, at most 2048 characters). It returns a `task_id`. Do not start editing yet.
 2. **Wait for the plan.** Call `advisor_get_plan` with the `task_id`. It waits up to 100 seconds.
    - `waiting: true` → ChatGPT has not answered yet. Call `advisor_get_plan` again. After several empty waits, tell the user that ChatGPT has to pick up the request (the user may need to send a message in ChatGPT, such as "continue").
-   - A `plan` → go to step 3.
+   - A `plan` → go to step 3. If you lost the plan (a dropped call or a restart) while the task is still executing, call `advisor_get_plan` again: it returns the same plan with `redelivered: true`.
    - `terminal: true` → the task ended (`done`, `blocked` or `error`). Report the outcome and the reason to the user and stop.
 3. **Execute the plan.** Follow `actions`, run the listed `tests`, and check `success_criteria`. Use your normal tools and approval flow. If the plan is unsafe, impossible, or needs a decision only the user can make, call `advisor_handoff` with a short reason instead of guessing.
 4. **Report.** Call `advisor_executed` with the `task_id`, the plan's `iteration`, the number of files you changed, each test with its status (`passed`, `failed`, `skipped`, `not_run`), and a short summary (at most 2048 characters).

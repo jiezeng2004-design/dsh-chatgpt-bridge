@@ -62,6 +62,7 @@ DSH agent 一侧(agent 工具,由 bridge 在 advisor 模式下注册,另带 `cha
 - DONE、BLOCKED、ERROR 是终态。终态任务保留 7 天后删除。
 - `iteration` 从 1 开始,每份新计划加 1。所有提交都要带当前 `iteration`,对不上返回 `STALE_ITERATION`。
 - 待处理请求由任务状态推出来(INIT、EXECUTED、HANDOFF 即待处理),不是单独的队列。`wait_request` 在请求被回答前会重复返回同一条,所以隧道丢一次响应不会丢请求,进程重启后也能续上。`request_id` 固定为 `<task_id>:<iteration>:<kind>`。
+- `advisor_get_plan` 同理:任务已在 EXECUTING 时再调一次,会原样返回当前计划并带 `redelivered: true`,状态不变。这样 DSH 丢了一次响应或重启后,仍能拿回执行指令。
 
 ## 4. 一轮循环
 
