@@ -112,8 +112,6 @@ export const TOOL_BEHAVIOR: Record<string, ToolBehavior> = {
   dsh_get_session: READ,
   dsh_get_task_status: READ,
   dsh_get_result: READ,
-  dsh_wait_until_action_required: READ,
-  dsh_wait_goal: READ,
   dsh_credential_status: READ,
   // Destructive: cancel or interrupt running work, or grant a real agent action.
   dsh_cancel_task: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
@@ -121,6 +119,11 @@ export const TOOL_BEHAVIOR: Record<string, ToolBehavior> = {
   dsh_pause_goal: { readOnly: false, destructive: true, idempotent: true, openWorld: false }, // cancels the active turn
   dsh_approve: { readOnly: false, destructive: true, idempotent: false, openWorld: true },
   dsh_rerun_step: { readOnly: false, destructive: true, idempotent: false, openWorld: true }, // re-executes completed steps
+  // Waits are observational, but on a terminal Goal they delete the Goal-owned
+  // temporary resources (release worktrees, _release-verify, notes, tarballs) via
+  // cleanupGoalTemps(), so they must not be advertised as read-only.
+  dsh_wait_until_action_required: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
+  dsh_wait_goal: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
   // Non-destructive writes that start or continue agent work.
   dsh_create_session: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
   dsh_send_message: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
@@ -483,7 +486,8 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
       annotations: toolAnnotations('dsh_wait_until_action_required'),
       title: 'Long wait on supervised Goal until action is required',
       description:
-        'Server-side long wait: returns only when human approval/question, error, or terminal completion is reached, avoiding high-frequency polling.',
+        'Server-side long wait: returns only when human approval/question, error, or terminal completion is reached, avoiding high-frequency polling. ' +
+        'When the Goal is terminal, Goal-owned temporary resources (release worktrees, _release-verify, notes, tarballs) are removed.',
       inputSchema: z.object({
         session_id: z.string().min(1),
         wait_seconds: z.number().int().min(1).max(300).optional().describe('Max seconds to wait (default 120, max 300)'),
@@ -602,7 +606,8 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
         'required. Do not end the turn while continuation_required is true. Do not tell the user ' +
         'the task is running in the background and stop. waiting_for_approval / waiting_for_user ' +
         'stop the loop so you can ask the human, then dsh_approve or dsh_answer_question, then ' +
-        'call this again. Never auto-approve or guess answers.',
+        'call this again. Never auto-approve or guess answers. When the Goal is terminal, Goal-owned ' +
+        'temporary resources (release worktrees, _release-verify, notes, tarballs) are removed.',
       inputSchema: z.object({
         session_id: z.string().min(1),
         wait_seconds: z.number().int().min(1).max(30).optional().describe('Max seconds to wait (default 25)'),

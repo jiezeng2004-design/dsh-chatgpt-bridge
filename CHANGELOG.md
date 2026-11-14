@@ -28,6 +28,9 @@
 - Every tool declares MCP annotations (`readOnlyHint`, `destructiveHint`,
   `idempotentHint`, `openWorldHint`) from one audited table; plain-object
   results are also returned as `structuredContent` next to the text block.
+  `dsh_wait_goal` and `dsh_wait_until_action_required` are marked
+  destructive, not read-only, because a wait on a terminal Goal removes its
+  Goal-owned temporary resources.
 - Malformed JSON bodies get HTTP 400 with a JSON-RPC `-32700` parse error
   before any MCP session is allocated. Idle MCP sessions are swept on every
   new session and capacity eviction is least-recently-active.

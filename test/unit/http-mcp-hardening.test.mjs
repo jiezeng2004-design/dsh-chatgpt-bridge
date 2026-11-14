@@ -196,9 +196,14 @@ test('successful object results also carry redacted structuredContent; arrays ke
 
 const READ_ONLY = [
   'dsh_health', 'dsh_list_workspaces', 'dsh_list_sessions', 'dsh_get_session', 'dsh_get_task_status',
-  'dsh_get_result', 'dsh_wait_until_action_required', 'dsh_wait_goal', 'dsh_credential_status',
+  'dsh_get_result', 'dsh_credential_status',
 ];
-const DESTRUCTIVE = ['dsh_cancel_task', 'dsh_stop_goal', 'dsh_pause_goal', 'dsh_approve', 'dsh_rerun_step'];
+// The wait tools clean up Goal-owned temp resources on terminal Goals, so they are
+// destructive rather than read-only (PR #15 review).
+const DESTRUCTIVE = [
+  'dsh_cancel_task', 'dsh_stop_goal', 'dsh_pause_goal', 'dsh_approve', 'dsh_rerun_step',
+  'dsh_wait_until_action_required', 'dsh_wait_goal',
+];
 
 test('every registered tool declares annotations matching the central table', () => {
   const server = createMcpServer({}, limits, log);
