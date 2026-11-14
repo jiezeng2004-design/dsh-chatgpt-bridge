@@ -15,6 +15,7 @@
   },
   "files": [
     "lib",
+    "skills/chatgpt-advisor/SKILL.md",
     "assets/screenshots/06-native-settings-real-use.png",
     "cordis.patch.yml",
     "cordis.headless.patch.yml",
@@ -77,6 +78,7 @@
     "zod": "4.4.3"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
     "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
@@ -84,7 +86,13 @@
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-title": "0.2.0-rc.2"
   },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/dsh-agent-default-model": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",

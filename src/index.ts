@@ -10,6 +10,7 @@ import { bridgeHttpUrl, ConfigSchema, resolveConfig, type BridgeConfigInput, typ
 import { createBridgeLogger, createControlLogger } from './log.js';
 import { createMcpServer } from './mcp.js';
 import { createAdvisorRuntime } from './advisor/runtime.js';
+import { registerAdvisorAgentTools } from './advisor/agent-tools.js';
 import { startHttpServer, type HttpServerHandle } from './http.js';
 import { RuntimeManager } from './control/runtime-manager.js';
 import { createManagementApi } from './control/routes.js';
@@ -37,6 +38,7 @@ export function apply(ctx: Context, config: BridgeConfigInput): void {
 
   const bridge = new Bridge(ctx, cfg, log);
   const advisor = cfg.mode === 'advisor' ? createAdvisorRuntime(cfg, log) : undefined;
+  registerAdvisorAgentTools(ctx, advisor, bridge, log);
   bridge.start();
 
   // v0.4.0 Control Plane: runtime manager + management API (web profile only).
