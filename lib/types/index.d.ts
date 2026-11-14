@@ -10,6 +10,7 @@ export declare const name = "chatgpt-bridge";
 export declare const inject: string[];
 /** Plugin configuration schema (schemastery, DSH convention). */
 export declare const Config: import("@deepseek-ai/schemastery").default<Schemastery.ObjectS<NoInfer<{
+    mode: import("@deepseek-ai/schemastery").default<"controller" | "advisor", "controller" | "advisor", "defined">;
     transport: import("@deepseek-ai/schemastery").default<"http" | "stdio", "http" | "stdio", "defined">;
     host: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     port: import("@deepseek-ai/schemastery").default<number, number, "defined">;
@@ -48,6 +49,7 @@ export declare const Config: import("@deepseek-ai/schemastery").default<Schemast
         dangerFullAccess: import("@deepseek-ai/schemastery").default<"deny" | "ask", "deny" | "ask", "defined">;
     }>>, "defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
+    mode: import("@deepseek-ai/schemastery").default<"controller" | "advisor", "controller" | "advisor", "defined">;
     transport: import("@deepseek-ai/schemastery").default<"http" | "stdio", "http" | "stdio", "defined">;
     host: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     port: import("@deepseek-ai/schemastery").default<number, number, "defined">;

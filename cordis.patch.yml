@@ -11,6 +11,7 @@
     - id: chatgpt-bridge
       name: 'dsh-chatgpt-bridge'
       config:
+        mode: controller
         transport: http
         host: 127.0.0.1
         port: 3456

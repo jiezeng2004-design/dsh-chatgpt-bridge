@@ -8,4 +8,25 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Bridge } from './bridge.js';
 import type { ResolvedBridgeConfig } from './config.js';
 import type { BridgeLogger } from './log.js';
+export declare function textResult(value: unknown): {
+    content: {
+        type: 'text';
+        text: string;
+    }[];
+};
+export declare function errorResult(error: unknown): {
+    content: {
+        type: 'text';
+        text: string;
+    }[];
+    isError: true;
+};
+/** Wrap one async handler into the MCP error convention. */
+export declare function safe<A>(handler: (args: A) => Promise<unknown>): (args: A) => Promise<{
+    content: {
+        type: "text";
+        text: string;
+    }[];
+    isError?: true;
+}>;
 export declare function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger): McpServer;

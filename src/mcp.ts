@@ -12,6 +12,7 @@ import type { BridgeLogger } from './log.js';
 import { redactValue } from './redact.js';
 import { parseConstraints } from './goal-constraints.js';
 import { BRIDGE_NAME, BRIDGE_VERSION } from './version.js';
+import { registerAdvisorTools } from './advisor/mcp-tools.js';
 
 const actionClassSchema = z.enum([
   'filesystem.read',
@@ -41,11 +42,11 @@ const constraintSchema = z.object({
   forbidden_actions: z.array(actionClassSchema).optional(),
 });
 
-function textResult(value: unknown): { content: { type: 'text'; text: string }[] } {
+export function textResult(value: unknown): { content: { type: 'text'; text: string }[] } {
   return { content: [{ type: 'text', text: JSON.stringify(redactValue(value), null, 2) }] };
 }
 
-function errorResult(error: unknown): { content: { type: 'text'; text: string }[]; isError: true } {
+export function errorResult(error: unknown): { content: { type: 'text'; text: string }[]; isError: true } {
   if (error instanceof BridgeError) {
     return {
       content: [{ type: 'text', text: JSON.stringify({ error: { code: error.code, message: error.message, ...(error.details === undefined ? {} : { details: error.details }) } }, null, 2) }],
@@ -61,7 +62,7 @@ function errorResult(error: unknown): { content: { type: 'text'; text: string }[
 }
 
 /** Wrap one async handler into the MCP error convention. */
-function safe<A>(handler: (args: A) => Promise<unknown>) {
+export function safe<A>(handler: (args: A) => Promise<unknown>) {
   return async (args: A): Promise<{ content: { type: 'text'; text: string }[]; isError?: true }> => {
     try {
       return textResult(await handler(args));
@@ -72,6 +73,7 @@ function safe<A>(handler: (args: A) => Promise<unknown>) {
 }
 
 export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger): McpServer {
+  const mode = cfg.mode === 'advisor' ? 'advisor' : 'controller';
   const server = new McpServer(
     { name: BRIDGE_NAME, version: BRIDGE_VERSION },
     { capabilities: { tools: {} } },
@@ -100,6 +102,11 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
     },
     safe(async () => bridge.listWorkspaces()),
   );
+
+  if (mode === 'advisor') {
+    registerAdvisorTools(server, bridge, cfg, log);
+    return server;
+  }
 
   server.registerTool(
     'dsh_create_session',
