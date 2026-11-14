@@ -10,8 +10,8 @@ function makeRegistry(workspaces) {
   };
 }
 
-const MIX = { id: 'ws-1', title: 'mix_workspace', path: 'D:\\Agent\\agent_workplace\\mix_workspace', createdAt: 'x', updatedAt: 'x', sessionIds: [] };
-const OTHER = { id: 'ws-2', title: 'other', path: 'D:\\Other\\place', createdAt: 'x', updatedAt: 'x', sessionIds: [] };
+const MIX = { id: 'ws-1', title: 'project', path: 'D:\\work\\project', createdAt: 'x', updatedAt: 'x', sessionIds: [] };
+const OTHER = { id: 'ws-2', title: 'other', path: 'D:\\work\\other', createdAt: 'x', updatedAt: 'x', sessionIds: [] };
 
 function makeBridge({ registry, agents, sessions, persistence, on, userQuestions, title } = {}) {
   const services = {
@@ -38,7 +38,7 @@ test('resolveWorkspace: accepts id, canonical path, and title (Case 5 boundary)'
   const bridge = makeBridge({ registry: makeRegistry([MIX, OTHER]) });
   assert.equal((await bridge.resolveWorkspace('ws-1')).path, MIX.path);
   assert.equal((await bridge.resolveWorkspace(MIX.path)).id, 'ws-1');
-  assert.equal((await bridge.resolveWorkspace('mix_workspace')).id, 'ws-1');
+  assert.equal((await bridge.resolveWorkspace('project')).id, 'ws-1');
 });
 
 test('resolveWorkspace: rejects unregistered paths (Case 5)', async () => {

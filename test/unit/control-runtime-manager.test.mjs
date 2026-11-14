@@ -318,7 +318,7 @@ test('runtime-manager: observes an external ready tunnel-client without adopting
     discover: () => ({
       runtimeApiKeyAvailable: true,
       healthBaseUrl: `http://127.0.0.1:${health.address().port}`,
-      runningProcess: { pid: 16984, executablePath: 'D:\\Application\\tunnel-client\\tunnel-client.exe', proxyFlag: true },
+      runningProcess: { pid: 16984, executablePath: 'D:\\tools\\tunnel-client\\tunnel-client.exe', proxyFlag: true },
       proxyInUse: true,
     }),
   });
@@ -357,7 +357,7 @@ test('runtime-manager: an external process that is not ready never reports OpenA
     discover: () => ({
       runtimeApiKeyAvailable: true,
       healthBaseUrl: `http://127.0.0.1:${health.address().port}`,
-      runningProcess: { pid: 16985, executablePath: 'D:\\Application\\tunnel-client\\tunnel-client.exe', proxyFlag: true },
+      runningProcess: { pid: 16985, executablePath: 'D:\\tools\\tunnel-client\\tunnel-client.exe', proxyFlag: true },
       proxyInUse: true,
     }),
   });

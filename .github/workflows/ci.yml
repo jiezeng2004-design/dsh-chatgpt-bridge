@@ -27,6 +27,20 @@ jobs:
       - name: Build
         # Tests import lib/*.js, so lib must be freshly built from src first.
         run: npm run build
+      - name: Verify committed lib matches a fresh build
+        # lib/ is committed and shipped. Fail if the fresh build differs from
+        # what is committed (modified, deleted or untracked files under lib).
+        # git compares normalized content (.gitattributes: text=auto eol=lf),
+        # so CRLF checkouts on Windows do not cause false positives.
+        shell: bash
+        run: |
+          git diff --exit-code -- lib
+          untracked="$(git status --porcelain --untracked-files=all -- lib)"
+          if [ -n "$untracked" ]; then
+            echo "::error::lib/ is out of date with src/. Run 'npm run build' and commit lib/."
+            echo "$untracked"
+            exit 1
+          fi
       - name: Test
         run: npm test
       - name: Packed package install and isolated official DSH contracts

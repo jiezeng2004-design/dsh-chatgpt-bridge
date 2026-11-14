@@ -12,7 +12,7 @@ export declare const ConfigSchema: z<Schemastery.ObjectS<NoInfer<{
     /** Bind port for the Streamable HTTP server. */
     port: z<number, number, "defined">;
     /** 'token' requires Authorization: Bearer <token>; 'none' disables auth (loopback only, not recommended). */
-    authMode: z<"token" | "none", "token" | "none", "defined">;
+    authMode: z<"none" | "token", "none" | "token", "defined">;
     /** Static token; empty falls back to authTokenEnv, then a generated token persisted to tokenFile. */
     authToken: z<string, string, "defined">;
     /** Environment variable read when authToken is empty. */
@@ -63,7 +63,7 @@ export declare const ConfigSchema: z<Schemastery.ObjectS<NoInfer<{
     /** Bind port for the Streamable HTTP server. */
     port: z<number, number, "defined">;
     /** 'token' requires Authorization: Bearer <token>; 'none' disables auth (loopback only, not recommended). */
-    authMode: z<"token" | "none", "token" | "none", "defined">;
+    authMode: z<"none" | "token", "none" | "token", "defined">;
     /** Static token; empty falls back to authTokenEnv, then a generated token persisted to tokenFile. */
     authToken: z<string, string, "defined">;
     /** Environment variable read when authToken is empty. */
@@ -144,6 +144,12 @@ export interface ResolvedBridgeConfig {
 export declare function normalizeSocketHostname(host: string): string;
 /** True only for listener hosts whose bind scope is loopback-only. */
 export declare function isLoopbackHost(host: string): boolean;
+/**
+ * True when a browser `Origin` header value names a loopback page
+ * (localhost, *.localhost, 127.0.0.0/8, ::1). Opaque or malformed origins
+ * (including the literal "null") are not loopback.
+ */
+export declare function isLoopbackOrigin(origin: string): boolean;
 /** Select a concrete address that can reach a wildcard listener locally. */
 export declare function bridgeConnectHost(listenerHost: string): string;
 /** Build a syntactically valid local probe URL, including IPv6 brackets. */

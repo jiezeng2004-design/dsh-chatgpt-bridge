@@ -179,7 +179,7 @@ test('routes: GET /config includes discovered hints and never leaks profile secr
     createRuntime: () => fake,
     pollIntervalMs: 100,
     discover: () => ({
-      executable: { path: 'D:\\\\Application\\\\tunnel-client\\\\tunnel-client.exe', source: 'well-known' },
+      executable: { path: 'D:\\\\tools\\\\tunnel-client\\\\tunnel-client.exe', source: 'well-known' },
       tunnelId: 'tunnel_discovered_from_profile',
       controlPlaneBaseUrl: 'https://api.openai.com',
       runtimeApiKeyAvailable: true,
