@@ -192,3 +192,15 @@ npm run test:release
 硬约束:不改 controller 模式现有行为(23 个工具保持不变),不升版本、不发布、不推送,
 不要声称做过真实 ChatGPT 或隧道联调。每个包单独提交。
 ```
+
+## 11. 核对记录(2026-11-14,实施会话)
+
+在工作树 `claude/advisor-mode-docs-read-3a063d` 实施;本方案由提交 `92821fb` cherry-pick 而来,基线 `b78a575` 不变。基线:`npm test` 400 通过、1 跳过、0 失败。
+
+与代码核对后的修正(以代码为准):
+
+1. **工具计数断言是文本计数。** `test/unit/bridge.test.mjs:522` 用正则数 `src/mcp.ts` 里 `server.registerTool(` 的出现次数,必须恰好 23。所以 advisor 工具一律注册在 `src/advisor/mcp-tools.ts`,`src/mcp.ts` 里不新增也不删除任何 `server.registerTool(` 文本。`test/unit/plugin-lifecycle.test.mjs:132` 用不带 `mode` 的部分配置调用 `createMcpServer`,所以缺省 `mode` 必须视为 `controller`。
+2. **`src/control/` 下的配置存取不涉及 `mode`。** `src/control/config-store.ts` 保存的是隧道运行时配置(`runtime-config.json`),和插件行配置 `ConfigSchema` 是两套。`mode` 只放进 `ConfigSchema` 与 `cordis.patch.yml`(`cordis.headless.patch.yml` 只插入 workspace 行,不含 bridge 配置,无需改)。WP1 范围相应缩小。
+3. **advisor 模式保留 `dsh_health` 与 `dsh_list_workspaces`。** 两者只读,且 ChatGPT 需要后者拿到工作区 id。其余 21 个工具在 advisor 下不注册。
+4. **第 8 节第 1 项已查清:DSH 插件可以给 agent 注册工具。** `@deepseek-ai/dsh-tool-todo` 的做法是 `inject: ['tools']` 后 `ctx.tools.register(defineTool({...}))`(`defineTool` 来自 `@deepseek-ai/dsh-tools`),`execute(args, exec)` 里能拿到调用方 `exec.agent`。bridge 与 agent 同进程,所以 WP5 走"能"这条路,不需要回环 HTTP 路由。为了不改变 controller 模式,bridge 只在 `mode=advisor` 时用 `ctx.inject(['tools'], ...)` 可选注入,不把 `tools` 加进顶层 `inject`。
+5. **Skill 分发方式已查清。** `@changfenhuang/dsh-genui` 在包根放 `SKILL.md`(带 frontmatter),再 `ctx.inject(['skills'], c => c.skills.registerProvider(() => provider))`,provider 返回 `list()`/`get()`,`source: 'bundled'`。bridge 照此注册 advisor skill,并把 SKILL 文件加入 `package.json` 的 `files`(不改版本号)。
