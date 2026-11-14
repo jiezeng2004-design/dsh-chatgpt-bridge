@@ -204,3 +204,11 @@ npm run test:release
 3. **advisor 模式保留 `dsh_health` 与 `dsh_list_workspaces`。** 两者只读,且 ChatGPT 需要后者拿到工作区 id。其余 21 个工具在 advisor 下不注册。
 4. **第 8 节第 1 项已查清:DSH 插件可以给 agent 注册工具。** `@deepseek-ai/dsh-tool-todo` 的做法是 `inject: ['tools']` 后 `ctx.tools.register(defineTool({...}))`(`defineTool` 来自 `@deepseek-ai/dsh-tools`),`execute(args, exec)` 里能拿到调用方 `exec.agent`。bridge 与 agent 同进程,所以 WP5 走"能"这条路,不需要回环 HTTP 路由。为了不改变 controller 模式,bridge 只在 `mode=advisor` 时用 `ctx.inject(['tools'], ...)` 可选注入,不把 `tools` 加进顶层 `inject`。
 5. **Skill 分发方式已查清。** `@changfenhuang/dsh-genui` 在包根放 `SKILL.md`(带 frontmatter),再 `ctx.inject(['skills'], c => c.skills.registerProvider(() => provider))`,provider 返回 `list()`/`get()`,`source: 'bundled'`。bridge 照此注册 advisor skill,并把 SKILL 文件加入 `package.json` 的 `files`(不改版本号)。
+
+### 第 8 节未验证事项的结论(2026-11-15)
+
+1. **DSH 插件能否给 agent 注册工具:能。** 见上文第 4 条;已在 WP5 实现(`src/advisor/agent-tools.ts`)。另核对了 Cordis 4.0.4:`ctx.inject` 的回调返回 Promise 时,会收集它 resolve 出的 disposer(`effect.then(safeCollect)`),所以异步注册的工具在插件卸载时会被移除。真实 DSH 的 `tools`、`skills` 服务是否接受这些注册,只用替身验证过,**未在真实 DSH 里验证**。
+2. **ChatGPT 一轮对话里能连续调用多少次工具、能持续多久:未验证。** 需要真实 ChatGPT 联调。工具描述已要求 ChatGPT 在 `continuation_required: true` 时同一轮里继续调用 `dsh_advisor_wait_request`;skill 里写明多次空等后请用户在 ChatGPT 里发一句话继续。
+3. **ChatGPT 套餐要求:部分查清。** OpenAI 帮助中心(约 2026-10-27 更新)写明自定义 MCP 服务器连接和完整 MCP 支持面向 ChatGPT web 的 Business 与 Enterprise/Edu;Business 只有管理员和所有者能创建,Enterprise/Edu 可用 RBAC 授权。个人套餐是否可用、写操作是否会被确认或拦截,官方页没写,**未验证**。已写进 README 与 `docs/advisor-protocol.md`。
+4. **`dsh_wait_until_action_required` 的 300 秒上限:未改。** 这是 controller 模式行为变更,按方案单独决定,本次不夹带。advisor 模式自己的长轮询都不超过 100 秒。
+5. **侧边栏浏览器自动化:未调研,也不依赖。**

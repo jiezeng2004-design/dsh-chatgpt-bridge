@@ -2,6 +2,30 @@
 
 ## Unreleased — DSH 0.2.0-rc.2
 
+### Advisor mode (new, opt-in)
+
+- New `mode` option: `controller` (default, unchanged 23 tools) or `advisor`,
+  where DSH executes and ChatGPT plans and reviews.
+- Advisor MCP surface (12 tools): `dsh_health`, `dsh_list_workspaces`, six
+  read-only `dsh_advisor_*` data-plane tools (workspace info, list, read,
+  search, git status, git diff) and four loop tools (wait request, submit
+  plan, submit verdict, test status). No write, command, approval or session
+  control tools are registered in this mode.
+- DSH agent tools `advisor_init`, `advisor_get_plan`, `advisor_executed`,
+  `advisor_handoff` and a bundled `chatgpt-advisor` skill, registered only in
+  advisor mode through optional `tools`/`skills` injection. New optional peer
+  dependency `@deepseek-ai/dsh-tools` 0.2.0-rc.2.
+- Persistent task state machine under `$DSH_HOME/chatgpt-bridge/advisor/`
+  with restart recovery, a configurable iteration limit
+  (`advisorMaxIterations`, default 12) and long-polls capped at 100 s.
+- Data plane: registered workspaces only, path and realpath containment,
+  a shared sensitive-file gate with `.dshadvisorignore`, size limits,
+  binary refusal, redaction; regex search runs on ripgrep only.
+- See `docs/advisor-protocol.md`. Not yet verified against real ChatGPT or a
+  real tunnel.
+
+### Host compatibility
+
 - Pin DSH peer and development dependencies to the exact 0.2.0-rc.2 host.
 - Update lifecycle assertions and both lockfiles for that host graph.
 - Allow the settings form to save or clear an empty Tunnel ID while retaining
