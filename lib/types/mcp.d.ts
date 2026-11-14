@@ -8,6 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Bridge } from './bridge.js';
 import type { ResolvedBridgeConfig } from './config.js';
 import type { BridgeLogger } from './log.js';
+import type { AdvisorRuntime } from './advisor/runtime.js';
 export declare function textResult(value: unknown): {
     content: {
         type: 'text';
@@ -29,4 +30,4 @@ export declare function safe<A>(handler: (args: A) => Promise<unknown>): (args: 
     }[];
     isError?: true;
 }>;
-export declare function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger): McpServer;
+export declare function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger, advisor?: AdvisorRuntime): McpServer;

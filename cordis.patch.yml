@@ -12,6 +12,7 @@
       name: 'dsh-chatgpt-bridge'
       config:
         mode: controller
+        advisorMaxIterations: 12
         transport: http
         host: 127.0.0.1
         port: 3456

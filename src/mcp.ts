@@ -13,6 +13,7 @@ import { redactValue } from './redact.js';
 import { parseConstraints } from './goal-constraints.js';
 import { BRIDGE_NAME, BRIDGE_VERSION } from './version.js';
 import { registerAdvisorTools } from './advisor/mcp-tools.js';
+import type { AdvisorRuntime } from './advisor/runtime.js';
 
 const actionClassSchema = z.enum([
   'filesystem.read',
@@ -72,7 +73,7 @@ export function safe<A>(handler: (args: A) => Promise<unknown>) {
   };
 }
 
-export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger): McpServer {
+export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger, advisor?: AdvisorRuntime): McpServer {
   const mode = cfg.mode === 'advisor' ? 'advisor' : 'controller';
   const server = new McpServer(
     { name: BRIDGE_NAME, version: BRIDGE_VERSION },
@@ -104,7 +105,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   );
 
   if (mode === 'advisor') {
-    registerAdvisorTools(server, bridge, cfg, log);
+    registerAdvisorTools(server, bridge, cfg, log, advisor);
     return server;
   }
 
