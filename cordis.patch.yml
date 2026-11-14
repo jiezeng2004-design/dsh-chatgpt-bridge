@@ -5,7 +5,8 @@
 # (`duplicate loader entry id: storage`) and is exactly why a dual-profile
 # boot cannot be "the same rows, later layer wins".
 #
-# DSH 0.1.7-rc.2 base-backed headless profiles already own storage/cache;
+# DSH base-backed headless profiles already own storage/cache (verified on
+# 0.1.7-rc.2; this Web patch itself is exercised on 0.2.2-rc.1 by test:release);
 # add only workspace via cordis.headless.patch.yml (never over Web).
 - insert:
     - id: chatgpt-bridge

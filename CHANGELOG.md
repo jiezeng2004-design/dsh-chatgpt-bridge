@@ -1,6 +1,67 @@
 # Changelog
 
-## Unreleased — DSH 0.2.0-rc.2
+## 0.7.0 — unreleased (DSH 0.2.2-rc.1)
+
+### Compatibility boundary
+
+- Target exactly DSH `0.2.2-rc.1` (npm `latest` on 2026-11-14), Cordis 4.1.0
+  and Schemastery 3.19.0. Requires Node.js 24.9+ (the DSH 0.2.2-rc.1 CLI's
+  `engines`); CI drops Node 22. The version moves to 0.7.0 so one bridge version no
+  longer names two hosts: npm 0.6.0 stays on DSH 0.1.7-rc.2.
+- Model selection is owned by the Agent in DSH 0.2.2 (`agent.model`); the
+  bridge no longer derives a selection from the session log and only installs
+  the scoped switch listener. `dsh_health` detects the Web surface through the
+  renamed `webApp` service (`webRuntime` still accepted).
+- MCP tool names and semantics are unchanged (23 tools).
+
+### Security
+
+- The MCP endpoint rejects browser requests whose `Origin` is not a loopback
+  page (HTTP 403 `forbidden-origin`, including preflight) and no longer sends
+  `Access-Control-Allow-Origin: *`. Requests without `Origin` (tunnel, CLI)
+  are unchanged. This closes a DNS-rebinding/CSRF path that mattered most
+  under `authMode: none`.
+- Error results (`BridgeError` message/details, internal message/stack) are
+  redacted like successful results.
+
+### Changed
+
+- Every tool declares MCP annotations (`readOnlyHint`, `destructiveHint`,
+  `idempotentHint`, `openWorldHint`) from one audited table; plain-object
+  results are also returned as `structuredContent` next to the text block.
+  `dsh_wait_goal` and `dsh_wait_until_action_required` are marked
+  destructive, not read-only, because a wait on a terminal Goal removes its
+  Goal-owned temporary resources.
+- Malformed JSON bodies get HTTP 400 with a JSON-RPC `-32700` parse error
+  before any MCP session is allocated. Idle MCP sessions are swept on every
+  new session and capacity eviction is least-recently-active.
+- npm is the only package manager; `pnpm-lock.yaml` is removed.
+- CI fails when committed `lib/` differs from a fresh build; a weekly,
+  non-gating workflow runs the suite against the DSH `next` tag.
+- Only the newest dated compatibility document ships in the package.
+- `src/bridge.ts` (about 2290 lines) is split into a facade plus
+  `bridge-types`, `bridge-helpers`, `bridge-workspace` (WorkspaceTracker),
+  `bridge-approvals` (ApprovalBroker), `bridge-goal-view` (GoalObserver) and
+  `bridge-goal-lifecycle` (GoalLifecycle). Public methods, exports, error
+  codes and async ordering are unchanged.
+- The DSH Web settings client is type-checked (`// @ts-check`, strict
+  `tsconfig.client.json`, part of `npm run typecheck`); an unused helper was
+  removed.
+- Tests and dogfood scripts no longer embed machine-specific paths: test
+  workspaces are temp directories, and the manual scripts take
+  `--workspace` or `DSH_BRIDGE_DOGFOOD_WORKSPACE`.
+
+### Fixed
+
+- The "parked approval" test no longer flakes under load: it waits on the
+  approval condition (failing fast if the decision settles without parking)
+  instead of a 2-second budget.
+
+See `docs/dsh-compatibility-2026-11-14.md` for verification evidence and the
+remaining unverified gates (real models, browser UI, ChatGPT, public tunnel,
+exact-commit CI).
+
+## Unreleased 0.2.0-rc.2 work (folded into 0.7.0, never published)
 
 - Pin DSH peer and development dependencies to the exact 0.2.0-rc.2 host.
 - Update lifecycle assertions and both lockfiles for that host graph.
@@ -96,10 +157,12 @@ single-mutable workspace locks, execution idempotency, and standardized result s
 - **Credential-safe introspection**: `dsh_credential_status` reports named env refs, keys present in `$DSH_HOME/credentials.yaml`, and runtime API-key configured state. Values, prefixes, and lengths are never returned.
 
 
+### Host hardening for DSH 0.1.1-rc.2 (folded into 0.5.0)
+
 Targeted security and host/runtime consistency hardening for DeepSeek Harness
 `0.1.1-rc.2`, preserving the 15-tool MCP data-plane contract.
 
-### Fixed
+#### Fixed
 
 - **Canonical auth-token creation**: concurrent first-start processes now use
   exclusive creation, losers adopt the stable persisted winner, token files use
@@ -113,7 +176,7 @@ Targeted security and host/runtime consistency hardening for DeepSeek Harness
 - **Node 22 test runner**: selects the supported experimental isolation flag
   before launch instead of producing a deliberate bad-option fallback.
 
-### Changed
+#### Changed
 
 - Upgraded the complete direct `@deepseek-ai/dsh-*` runtime and development
   family to `0.1.1-rc.2`; host-owned Cordis and `dsh-llm` remain peer + dev

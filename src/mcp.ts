@@ -41,33 +41,114 @@ const constraintSchema = z.object({
   forbidden_actions: z.array(actionClassSchema).optional(),
 });
 
-function textResult(value: unknown): { content: { type: 'text'; text: string }[] } {
-  return { content: [{ type: 'text', text: JSON.stringify(redactValue(value), null, 2) }] };
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function errorResult(error: unknown): { content: { type: 'text'; text: string }[]; isError: true } {
+type TextResult = {
+  content: { type: 'text'; text: string }[];
+  structuredContent?: Record<string, unknown>;
+  isError?: true;
+};
+
+/**
+ * Successful result: redacted JSON text (kept for backward compatibility) plus,
+ * for plain-object values, the identical redacted object as structuredContent.
+ * No tool declares an outputSchema, so the SDK performs no validation on it.
+ */
+function textResult(value: unknown): TextResult {
+  const redacted = redactValue(value);
+  const text = JSON.stringify(redacted, null, 2);
+  const result: TextResult = { content: [{ type: 'text', text }] };
+  if (isPlainObject(redacted)) result.structuredContent = JSON.parse(text) as Record<string, unknown>;
+  return result;
+}
+
+function errorResult(error: unknown): TextResult & { isError: true } {
+  let payload: { error: Record<string, unknown> };
   if (error instanceof BridgeError) {
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: { code: error.code, message: error.message, ...(error.details === undefined ? {} : { details: error.details }) } }, null, 2) }],
-      isError: true,
-    };
+    payload = { error: { code: error.code, message: error.message, ...(error.details === undefined ? {} : { details: error.details }) } };
+  } else {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = process.env.DSH_CHATGPT_BRIDGE_DEBUG === '1' && error instanceof Error ? error.stack : undefined;
+    payload = { error: stack ? { code: 'INTERNAL', message, stack } : { code: 'INTERNAL', message } };
   }
-  const message = error instanceof Error ? error.message : String(error);
-  const stack = process.env.DSH_CHATGPT_BRIDGE_DEBUG === '1' && error instanceof Error ? error.stack : undefined;
-  return {
-    content: [{ type: 'text', text: JSON.stringify(stack ? { error: { code: 'INTERNAL', message, stack } } : { error: { code: 'INTERNAL', message } }, null, 2) }],
-    isError: true,
-  };
+  // Error text can echo caller input or upstream failures: always redact.
+  return { content: [{ type: 'text', text: JSON.stringify(redactValue(payload), null, 2) }], isError: true };
 }
 
 /** Wrap one async handler into the MCP error convention. */
 function safe<A>(handler: (args: A) => Promise<unknown>) {
-  return async (args: A): Promise<{ content: { type: 'text'; text: string }[]; isError?: true }> => {
+  return async (args: A): Promise<TextResult> => {
     try {
       return textResult(await handler(args));
     } catch (error) {
       return errorResult(error);
     }
+  };
+}
+
+interface ToolBehavior {
+  readOnly: boolean;
+  /** Only meaningful for writes: may overwrite/cancel/approve in a way that is hard to undo. */
+  destructive: boolean;
+  idempotent: boolean;
+  /** True when the tool starts or continues agent work that may touch the network/filesystem. */
+  openWorld: boolean;
+}
+
+const READ: ToolBehavior = { readOnly: true, destructive: false, idempotent: true, openWorld: false };
+
+/**
+ * Single audit table for MCP tool annotations. ChatGPT uses these hints to
+ * decide whether to ask the user before calling a tool. Every registered tool
+ * must have an entry (toolAnnotations throws otherwise).
+ */
+export const TOOL_BEHAVIOR: Record<string, ToolBehavior> = {
+  // Read-only: inspect state, never change it.
+  dsh_health: READ,
+  dsh_list_workspaces: READ,
+  dsh_list_sessions: READ,
+  dsh_get_session: READ,
+  dsh_get_task_status: READ,
+  dsh_get_result: READ,
+  dsh_credential_status: READ,
+  // Destructive: cancel or interrupt running work, or grant a real agent action.
+  dsh_cancel_task: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
+  dsh_stop_goal: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
+  dsh_pause_goal: { readOnly: false, destructive: true, idempotent: true, openWorld: false }, // cancels the active turn
+  dsh_approve: { readOnly: false, destructive: true, idempotent: false, openWorld: true },
+  dsh_rerun_step: { readOnly: false, destructive: true, idempotent: false, openWorld: true }, // re-executes completed steps
+  // Waits are observational, but on a terminal Goal they delete the Goal-owned
+  // temporary resources (release worktrees, _release-verify, notes, tarballs) via
+  // cleanupGoalTemps(), so they must not be advertised as read-only.
+  dsh_wait_until_action_required: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
+  dsh_wait_goal: { readOnly: false, destructive: true, idempotent: true, openWorld: false },
+  // Non-destructive writes that start or continue agent work.
+  dsh_create_session: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_send_message: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_answer_question: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_create_goal: { readOnly: false, destructive: false, idempotent: true, openWorld: true }, // reuses an equivalent active goal
+  dsh_start_goal: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_revise_goal: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_update_goal: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_resume_goal: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+  dsh_retry_step: { readOnly: false, destructive: false, idempotent: false, openWorld: true },
+};
+
+export function toolAnnotations(name: string): {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+} {
+  const behavior = TOOL_BEHAVIOR[name];
+  if (behavior === undefined) throw new Error(`missing tool annotations for ${name}`);
+  return {
+    readOnlyHint: behavior.readOnly,
+    destructiveHint: behavior.destructive,
+    idempotentHint: behavior.idempotent,
+    openWorldHint: behavior.openWorld,
   };
 }
 
@@ -80,6 +161,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_health',
     {
+      annotations: toolAnnotations('dsh_health'),
       title: 'DSH bridge health',
       description:
         'Bridge and DSH runtime status: versions, live/persisted/active session counts and ' +
@@ -92,6 +174,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_list_workspaces',
     {
+      annotations: toolAnnotations('dsh_list_workspaces'),
       title: 'List registered workspaces',
       description:
         'List the workspaces DSH already registered/authorized. Sessions can only be created ' +
@@ -104,6 +187,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_create_session',
     {
+      annotations: toolAnnotations('dsh_create_session'),
       title: 'Create a DSH session',
       description:
         'Create a real DSH agent session bound to a registered workspace (id, canonical path, or ' +
@@ -122,6 +206,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_list_sessions',
     {
+      annotations: toolAnnotations('dsh_list_sessions'),
       title: 'List DSH sessions',
       description:
         'List sessions (live + persisted), newest first, with limited paging. DSH persistence is ' +
@@ -139,6 +224,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_get_session',
     {
+      annotations: toolAnnotations('dsh_get_session'),
       title: 'Inspect one DSH session',
       description:
         'Status, workspace, recent message summary (bounded), agent state, pending work, ' +
@@ -156,6 +242,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_send_message',
     {
+      annotations: toolAnnotations('dsh_send_message'),
       title: 'Send a message to a DSH session',
       description:
         'Continue an EXISTING DSH session: the message joins that session\'s durable log and the ' +
@@ -173,6 +260,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_get_task_status',
     {
+      annotations: toolAnnotations('dsh_get_task_status'),
       title: 'Task status of one session',
       description:
         'Status vocabulary: idle, queued, running, waiting_for_user, waiting_for_approval, ' +
@@ -187,6 +275,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_get_result',
     {
+      annotations: toolAnnotations('dsh_get_result'),
       title: 'Final result of the last turn',
       description:
         'Last turn\'s assistant text, status, tool calls, changed files (from the session log, ' +
@@ -204,6 +293,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_cancel_task',
     {
+      annotations: toolAnnotations('dsh_cancel_task'),
       title: 'Cancel the running task',
       description:
         'Cancel the active turn of a live session through DSH\'s own cancel mechanism ' +
@@ -218,6 +308,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_answer_question',
     {
+      annotations: toolAnnotations('dsh_answer_question'),
       title: 'Answer a pending user question',
       description:
         'Answer a question the DSH agent asked the human (status waiting_for_user). Pass the ' +
@@ -237,6 +328,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_approve',
     {
+      annotations: toolAnnotations('dsh_approve'),
       title: 'Decide one pending approval',
       description:
         'Decide one explicit DSH permission approval (status waiting_for_approval). Requires the ' +
@@ -255,6 +347,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_create_goal',
     {
+      annotations: toolAnnotations('dsh_create_goal'),
       title: 'Create a supervised DSH goal',
       description:
         'Create a supervised DSH goal. If an equivalent active Goal already exists on the workspace, ' +
@@ -284,6 +377,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_revise_goal',
     {
+      annotations: toolAnnotations('dsh_revise_goal'),
       title: 'Revise a supervised DSH goal',
       description:
         'Substantive update to an existing Goal (goal/plan/mode/constraints). Increments revision with optimistic locking (expected_revision).',
@@ -315,6 +409,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_pause_goal',
     {
+      annotations: toolAnnotations('dsh_pause_goal'),
       title: 'Pause a supervised DSH goal',
       description: 'Pause active turn and keep durable checkpoint without losing state.',
       inputSchema: z.object({ session_id: z.string().min(1) }),
@@ -325,6 +420,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_resume_goal',
     {
+      annotations: toolAnnotations('dsh_resume_goal'),
       title: 'Resume a paused/deferred DSH goal',
       description: 'Resume from checkpoint without re-running completed steps.',
       inputSchema: z.object({
@@ -345,6 +441,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_retry_step',
     {
+      annotations: toolAnnotations('dsh_retry_step'),
       title: 'Retry a blocked or failed step',
       description: 'Retry a specific blocked or failed step under the same identity, clearing stale blockers.',
       inputSchema: z.object({
@@ -365,6 +462,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_rerun_step',
     {
+      annotations: toolAnnotations('dsh_rerun_step'),
       title: 'Rerun or re-verify a step',
       description: 'Explicitly rerun a step with a fresh attempt even if previously completed.',
       inputSchema: z.object({
@@ -385,9 +483,11 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_wait_until_action_required',
     {
+      annotations: toolAnnotations('dsh_wait_until_action_required'),
       title: 'Long wait on supervised Goal until action is required',
       description:
-        'Server-side long wait: returns only when human approval/question, error, or terminal completion is reached, avoiding high-frequency polling.',
+        'Server-side long wait: returns only when human approval/question, error, or terminal completion is reached, avoiding high-frequency polling. ' +
+        'When the Goal is terminal, Goal-owned temporary resources (release worktrees, _release-verify, notes, tarballs) are removed.',
       inputSchema: z.object({
         session_id: z.string().min(1),
         wait_seconds: z.number().int().min(1).max(300).optional().describe('Max seconds to wait (default 120, max 300)'),
@@ -400,6 +500,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_credential_status',
     {
+      annotations: toolAnnotations('dsh_credential_status'),
       title: 'Check credential availability (secret-safe)',
       description: 'Inspect provider credential availability and source without returning raw secret tokens or keys.',
       inputSchema: z.object({}),
@@ -410,6 +511,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_start_goal',
     {
+      annotations: toolAnnotations('dsh_start_goal'),
       title: 'Start a supervised DSH goal',
       description:
         'Use this when the user gives DSH a multi-step goal or an execution plan. Creates or ' +
@@ -450,6 +552,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_update_goal',
     {
+      annotations: toolAnnotations('dsh_update_goal'),
       title: 'Revise, defer, or resume a supervised Goal',
       description:
         'Control-plane update for an EXISTING supervised Goal. session_id is required and this '
@@ -495,6 +598,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_wait_goal',
     {
+      annotations: toolAnnotations('dsh_wait_goal'),
       title: 'Wait on a supervised DSH goal',
       description:
         'Bounded long-poll (default 25s, max 30s) of one DSH session. If continuation_required is ' +
@@ -502,7 +606,8 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
         'required. Do not end the turn while continuation_required is true. Do not tell the user ' +
         'the task is running in the background and stop. waiting_for_approval / waiting_for_user ' +
         'stop the loop so you can ask the human, then dsh_approve or dsh_answer_question, then ' +
-        'call this again. Never auto-approve or guess answers.',
+        'call this again. Never auto-approve or guess answers. When the Goal is terminal, Goal-owned ' +
+        'temporary resources (release worktrees, _release-verify, notes, tarballs) are removed.',
       inputSchema: z.object({
         session_id: z.string().min(1),
         wait_seconds: z.number().int().min(1).max(30).optional().describe('Max seconds to wait (default 25)'),
@@ -515,6 +620,7 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
   server.registerTool(
     'dsh_stop_goal',
     {
+      annotations: toolAnnotations('dsh_stop_goal'),
       title: 'Stop a supervised DSH goal',
       description:
         'Use when the user asks to stop, cancel, or interrupt the supervised DSH goal. Idempotent: ' +

@@ -13,7 +13,7 @@ export declare const Config: import("@deepseek-ai/schemastery").default<Schemast
     transport: import("@deepseek-ai/schemastery").default<"http" | "stdio", "http" | "stdio", "defined">;
     host: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     port: import("@deepseek-ai/schemastery").default<number, number, "defined">;
-    authMode: import("@deepseek-ai/schemastery").default<"token" | "none", "token" | "none", "defined">;
+    authMode: import("@deepseek-ai/schemastery").default<"none" | "token", "none" | "token", "defined">;
     authToken: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     authTokenEnv: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     tokenFile: import("@deepseek-ai/schemastery").default<string, string, "defined">;
@@ -51,7 +51,7 @@ export declare const Config: import("@deepseek-ai/schemastery").default<Schemast
     transport: import("@deepseek-ai/schemastery").default<"http" | "stdio", "http" | "stdio", "defined">;
     host: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     port: import("@deepseek-ai/schemastery").default<number, number, "defined">;
-    authMode: import("@deepseek-ai/schemastery").default<"token" | "none", "token" | "none", "defined">;
+    authMode: import("@deepseek-ai/schemastery").default<"none" | "token", "none" | "token", "defined">;
     authToken: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     authTokenEnv: import("@deepseek-ai/schemastery").default<string, string, "defined">;
     tokenFile: import("@deepseek-ai/schemastery").default<string, string, "defined">;

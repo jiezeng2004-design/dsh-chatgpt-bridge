@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * dsh-chatgpt-bridge Native Settings section (browser half).
  *
@@ -22,6 +23,115 @@
 'use strict';
 
 const React = require('react');
+
+// ------------------------------------------------------------------------- types
+// Shapes of the loopback management API payloads (src/control/routes.ts and
+// src/control/types.ts). The browser only ever sees JSON, so every field the
+// server may omit is optional here.
+
+/** @typedef {(key: string) => string} Translate */
+
+/** @typedef {{ ok: false, status?: number, error?: string }} ApiFailure */
+
+/**
+ * @template [T=object]
+ * @typedef {({ ok: true } & T) | ApiFailure} ApiResult
+ */
+
+/**
+ * @typedef {object} DetectionResult
+ * @property {boolean} installed
+ * @property {string} [executablePath]
+ * @property {string} [version]
+ * @property {string} [error]
+ * @property {string} [source]
+ */
+
+/**
+ * @typedef {object} RuntimeConfigPayload
+ * @property {{
+ *   executable?: string,
+ *   tunnelId?: string,
+ *   profileName?: string,
+ *   proxy?: { enabled?: boolean, host?: string, port?: number },
+ *   autoStart?: boolean,
+ * }} [tunnel]
+ * @property {{ controlPlaneBaseUrl?: string, runtimeApiKeyRef?: string }} [openai]
+ * @property {{ endpoint?: string }} [bridge]
+ */
+
+/**
+ * Hints from an already-installed tunnel-client (src/control/discover.ts).
+ * @typedef {object} DiscoveredPayload
+ * @property {{ path?: string }} [executable]
+ * @property {string} [tunnelId]
+ * @property {string} [controlPlaneBaseUrl]
+ * @property {boolean} [runtimeApiKeyAvailable]
+ * @property {{ host?: string, port?: number }} [proxy]
+ * @property {boolean} [proxyInUse]
+ * @property {{ proxyFlag?: boolean }} [runningProcess]
+ */
+
+/**
+ * Body of GET /config.
+ * @typedef {object} ConfigPayload
+ * @property {RuntimeConfigPayload} [config]
+ * @property {{ runtimeApiKeyConfigured?: boolean }} [secrets]
+ * @property {DetectionResult} [detection]
+ * @property {DiscoveredPayload} [discovered]
+ */
+
+/**
+ * Runtime snapshot carried by GET /status.
+ * @typedef {object} Snapshot
+ * @property {{ status?: string, url?: string, reachable?: boolean }} [bridge]
+ * @property {{ status?: string, processRunning?: boolean, healthy?: boolean, ready?: boolean, pid?: number, owned?: boolean }} [tunnel]
+ * @property {{ status?: string }} [openai]
+ * @property {{ status?: string }} [overall]
+ * @property {{ component: string, code: string, message: string }} [lastError]
+ * @property {string} [updatedAt]
+ */
+
+/** @typedef {{ status: Snapshot }} StatusPayload */
+
+/** @typedef {{ component?: string, lines?: string[] }} LogsPayload */
+
+/** @typedef {{ id: string, ok: boolean, detail?: string, code?: string }} DiagStep */
+
+/** @typedef {{ ok?: boolean, steps?: DiagStep[] }} DiagResult */
+
+/**
+ * Settings form values derived from GET /config.
+ * @typedef {object} FormFields
+ * @property {string} tunnelId
+ * @property {string} executable
+ * @property {string} controlPlane
+ * @property {boolean} autoStart
+ * @property {boolean} proxyEnabled
+ * @property {string} proxyHost
+ * @property {string} proxyPort
+ * @property {boolean} keyConfigured
+ * @property {DetectionResult | undefined} detection
+ * @property {RuntimeConfigPayload} config
+ */
+
+/** @typedef {{ target: { value: string } }} InputChangeEvent */
+
+/** @typedef {{ target: { checked: boolean } }} CheckboxChangeEvent */
+
+/**
+ * The slice of the DSH plugin context the client uses.
+ * @typedef {object} ClientContext
+ * @property {(fn: () => unknown, label?: string) => unknown} effect
+ * @property {{
+ *   register: (ns: string, dictionaries: { zh: Record<string, string>, en: Record<string, string> }) => unknown,
+ *   bind: (ns: string) => Translate,
+ * }} locale
+ * @property {{
+ *   inject: (name: string, factory: () => unknown) => unknown,
+ *   register: (descriptor: Record<string, unknown>, component: unknown) => unknown,
+ * }} slots
+ */
 
 const NS = 'chatgptBridge';
 const API = '/_dsh/chatgpt-bridge';
@@ -222,6 +332,7 @@ function ensureStyles() {
 
 ensureStyles();
 
+/** @param {ClientContext} ctx */
 function apply(ctx) {
   ensureStyles();
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'chatgpt-bridge: copy dictionaries');
@@ -243,6 +354,11 @@ function apply(ctx) {
 
 // ------------------------------------------------------------------------- api
 
+/**
+ * @template [T=object]
+ * @param {string} path
+ * @returns {Promise<ApiResult<T>>}
+ */
 async function apiGet(path) {
   try {
     const response = await fetch(API + path, { cache: 'no-store' });
@@ -253,6 +369,13 @@ async function apiGet(path) {
   }
 }
 
+/**
+ * @template [T=object]
+ * @param {'POST' | 'PUT' | 'DELETE'} method
+ * @param {string} path
+ * @param {unknown} [body]
+ * @returns {Promise<ApiResult<T>>}
+ */
 async function apiMutate(method, path, body) {
   try {
     const headers = { 'Content-Type': 'application/json', [MUTATION_HEADER]: '1' };
@@ -273,6 +396,9 @@ async function apiMutate(method, path, body) {
  * whether to apply it: a live 2s config refresh must NEVER overwrite in-progress
  * edits (that is why the Enable-proxy checkbox snapped back the moment it was
  * clicked — an in-flight GET /config completed and reset `proxy.enabled`).
+ *
+ * @param {ConfigPayload} configJson
+ * @returns {FormFields}
  */
 function formFromConfigPayload(configJson) {
   const config = configJson.config ?? {};
@@ -303,7 +429,12 @@ function formFromConfigPayload(configJson) {
   };
 }
 
-/** Server form values apply only on first load, after Save, or when nothing is dirty. */
+/**
+ * Server form values apply only on first load, after Save, or when nothing is dirty.
+ * @param {boolean | undefined} dirty
+ * @param {boolean | undefined} force
+ * @returns {boolean}
+ */
 function shouldApplyServerForm(dirty, force) {
   return force === true || dirty !== true;
 }
@@ -311,13 +442,22 @@ function shouldApplyServerForm(dirty, force) {
 /**
  * Missing Runtime API key is not an OpenAI connection failure. Show it as
  * "not configured" instead of a red `error` while the tunnel is down.
+ *
+ * @param {string} status
+ * @param {boolean} keyConfigured
+ * @returns {string}
  */
 function openaiDisplayStatus(status, keyConfigured) {
   if (!keyConfigured && (status === 'error' || status === 'unknown')) return 'notConfigured';
   return status;
 }
 
-/** Translate a runtime status token; falls back to the raw token if missing. */
+/**
+ * Translate a runtime status token; falls back to the raw token if missing.
+ * @param {Translate} t
+ * @param {string | undefined} status
+ * @returns {string | undefined}
+ */
 function tStatus(t, status) {
   if (typeof status !== 'string' || status === '') return status;
   const key = 'st_' + status;
@@ -325,7 +465,12 @@ function tStatus(t, status) {
   return value === key ? status : value;
 }
 
-/** Replacement field empty → keep the stored value; typed text replaces it. */
+/**
+ * Replacement field empty → keep the stored value; typed text replaces it.
+ * @param {string} stored
+ * @param {unknown} draft
+ * @returns {string}
+ */
 function resolveSecretDraft(stored, draft) {
   const typed = typeof draft === 'string' ? draft.trim() : '';
   return typed !== '' ? typed : stored;
@@ -333,6 +478,7 @@ function resolveSecretDraft(stored, draft) {
 
 // ------------------------------------------------------------------------- ui
 
+/** @param {string | undefined} status */
 function statusColor(status) {
   if (status === 'ready' || status === 'running' || status === 'connected') return '#22c55e';
   if (status === 'degraded' || status === 'starting' || status === 'stopping') return '#f59e0b';
@@ -340,13 +486,11 @@ function statusColor(status) {
   return '#9ca3af';
 }
 
-function statusTone(status) {
-  if (status === 'ready' || status === 'running' || status === 'connected') return 'ok';
-  if (status === 'degraded' || status === 'starting' || status === 'stopping' || status === 'notConfigured') return 'warn';
-  if (status === 'error' || status === 'unauthorized' || status === 'unreachable') return 'err';
-  return 'mute';
-}
-
+/**
+ * @param {"primary" | "danger"} [kind]
+ * @param {"sm"} [size]
+ * @returns {string}
+ */
 function btnClass(kind, size) {
   return (
     'dcb-btn' +
@@ -355,10 +499,12 @@ function btnClass(kind, size) {
   );
 }
 
+/** @param {string} color */
 function dot(color) {
   return React.createElement('span', { className: 'dcb-dot', style: { background: color } });
 }
 
+/** @param {{ label: string, status: string | undefined, display?: string, color?: string }} props */
 function StatusLine(props) {
   const display = props.display ?? props.status;
   const color = props.color ?? statusColor(props.status);
@@ -375,6 +521,7 @@ function StatusLine(props) {
   );
 }
 
+/** @param {{ title: string, extra?: unknown, children?: unknown }} props */
 function Section(props) {
   return React.createElement(
     'div',
@@ -389,6 +536,7 @@ function Section(props) {
   );
 }
 
+/** @param {{ label: string, stacked?: boolean, children?: unknown }} props */
 function Row(props) {
   const stacked = props.stacked === true;
   if (stacked) {
@@ -407,6 +555,7 @@ function Row(props) {
   );
 }
 
+/** @param {{ checked: boolean, label: string, onChange: (event: CheckboxChangeEvent) => void }} props */
 function Switch(props) {
   return React.createElement(
     'label',
@@ -426,17 +575,28 @@ function Switch(props) {
   );
 }
 
+/**
+ * @param {{
+ *   value: string,
+ *   onChange: (event: InputChangeEvent) => void,
+ *   type?: string,
+ *   autoComplete?: string,
+ *   spellCheck?: boolean,
+ *   placeholder?: string,
+ * }} props
+ */
 function fieldInput(props) {
   return React.createElement('input', { ...props, className: 'dcb-input' });
 }
 
 // ------------------------------------------------------------------------- section
 
+/** @param {{ t: Translate }} props */
 function BridgeSection(props) {
   const t = props.t;
-  const [snapshot, setSnapshot] = React.useState(undefined);
-  const [config, setConfig] = React.useState(undefined);
-  const [detection, setDetection] = React.useState(undefined);
+  const [snapshot, setSnapshot] = React.useState(/** @type {Snapshot | undefined} */ (undefined));
+  const [config, setConfig] = React.useState(/** @type {RuntimeConfigPayload | undefined} */ (undefined));
+  const [detection, setDetection] = React.useState(/** @type {DetectionResult | undefined} */ (undefined));
   const [keyConfigured, setKeyConfigured] = React.useState(false);
   const [keyInput, setKeyInput] = React.useState('');
   const [tunnelId, setTunnelId] = React.useState('');
@@ -447,11 +607,11 @@ function BridgeSection(props) {
   const [proxyEnabled, setProxyEnabled] = React.useState(false);
   const [proxyHost, setProxyHost] = React.useState('127.0.0.1');
   const [proxyPort, setProxyPort] = React.useState('7892');
-  const [busy, setBusy] = React.useState(undefined);
-  const [notice, setNotice] = React.useState(undefined);
-  const [diag, setDiag] = React.useState(undefined);
+  const [busy, setBusy] = React.useState(/** @type {string | undefined} */ (undefined));
+  const [notice, setNotice] = React.useState(/** @type {string | undefined} */ (undefined));
+  const [diag, setDiag] = React.useState(/** @type {DiagResult | undefined} */ (undefined));
   const [showLogs, setShowLogs] = React.useState(false);
-  const [logs, setLogs] = React.useState([]);
+  const [logs, setLogs] = React.useState(/** @type {string[]} */ ([]));
   const [dirty, setDirty] = React.useState(false);
   const dirtyRef = React.useRef(false);
 
@@ -460,6 +620,7 @@ function BridgeSection(props) {
     setDirty(true);
   };
 
+  /** @param {FormFields} fields */
   const applyForm = (fields) => {
     setTunnelId(fields.tunnelId);
     setTunnelIdInput('');
@@ -476,6 +637,7 @@ function BridgeSection(props) {
 
   const refreshStatus = React.useCallback(async () => {
     try {
+      /** @type {ApiResult<StatusPayload>} */
       const statusJson = await apiGet('/status');
       if (statusJson.ok) setSnapshot(statusJson.status);
     } catch {
@@ -483,8 +645,9 @@ function BridgeSection(props) {
     }
   }, []);
 
-  const hydrateConfig = React.useCallback(async (opts) => {
+  const hydrateConfig = React.useCallback(/** @param {{ force?: boolean }} [opts] */ async (opts) => {
     try {
+      /** @type {ApiResult<ConfigPayload>} */
       const configJson = await apiGet('/config');
       if (!configJson.ok) return;
       const fields = formFromConfigPayload(configJson);
@@ -526,6 +689,7 @@ function BridgeSection(props) {
     };
   }, [refresh, refreshStatus, hydrateConfig]);
 
+  /** @param {string} action */
   const runAction = async (action) => {
     setBusy(action);
     setNotice(undefined);
@@ -605,6 +769,7 @@ function BridgeSection(props) {
     setBusy('diag');
     setNotice(undefined);
     try {
+      /** @type {ApiResult<DiagResult>} */
       const json = await apiMutate('POST', '/diagnostics');
       setDiag(json);
     } catch (error) {
@@ -618,6 +783,7 @@ function BridgeSection(props) {
     setShowLogs(!showLogs);
     if (showLogs) return;
     try {
+      /** @type {ApiResult<LogsPayload>} */
       const json = await apiGet('/logs?component=manager&limit=200');
       if (json.ok) setLogs(json.lines ?? []);
     } catch {
@@ -639,6 +805,7 @@ function BridgeSection(props) {
   const endpoint = snapshot?.bridge?.url ?? config?.bridge?.endpoint ?? 'http://127.0.0.1:3456/mcp';
   const tunnelIdConfigured = tunnelId.trim() !== '';
 
+  /** @type {unknown[]} */
   const children = [];
 
   if (config === undefined && snapshot === undefined) {
@@ -791,7 +958,7 @@ function BridgeSection(props) {
         React.createElement(Switch, {
           checked: autoStart,
           label: t('autoStart'),
-          onChange: (event) => {
+          onChange: /** @param {CheckboxChangeEvent} event */ (event) => {
             markDirty();
             setAutoStart(event.target.checked);
           },
@@ -804,7 +971,7 @@ function BridgeSection(props) {
         React.createElement(Switch, {
           checked: proxyEnabled,
           label: t('enableProxy'),
-          onChange: (event) => {
+          onChange: /** @param {CheckboxChangeEvent} event */ (event) => {
             markDirty();
             setProxyEnabled(event.target.checked);
           },

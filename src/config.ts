@@ -123,6 +123,20 @@ export function isLoopbackHost(host: string): boolean {
   return canonical === '::1' || /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(canonical);
 }
 
+/**
+ * True when a browser `Origin` header value names a loopback page
+ * (localhost, *.localhost, 127.0.0.0/8, ::1). Opaque or malformed origins
+ * (including the literal "null") are not loopback.
+ */
+export function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const host = normalizeSocketHostname(new URL(origin).hostname).toLowerCase();
+    return host !== '' && (isLoopbackHost(host) || host.endsWith('.localhost'));
+  } catch {
+    return false;
+  }
+}
+
 /** Select a concrete address that can reach a wildcard listener locally. */
 export function bridgeConnectHost(listenerHost: string): string {
   const value = normalizedHost(listenerHost);

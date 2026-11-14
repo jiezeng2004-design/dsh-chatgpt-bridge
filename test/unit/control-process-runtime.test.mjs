@@ -125,7 +125,7 @@ test('process-runtime: detect resolves configured executable and version', async
 });
 
 test('process-runtime: detect uses well-known discovery when unconfigured', async () => {
-  const wellKnown = 'D:\\Application\\tunnel-client\\tunnel-client.exe';
+  const wellKnown = 'D:\\tools\\tunnel-client\\tunnel-client.exe';
   const runtime = new ProcessTunnelRuntime({
     spawnSyncFn: () => ({ stdout: 'tunnel-client 0.0.11\n', stderr: '', status: 0 }),
     isAliveFn: () => true,

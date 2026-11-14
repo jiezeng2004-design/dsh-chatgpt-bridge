@@ -1,5 +1,6 @@
 # Optional overlay for a headless (no dsh-web-app) profile.
-# DSH 0.1.7-rc.2 dsh-base already owns storage and session-projection-cache.
+# DSH dsh-base already owns storage and session-projection-cache (verified on
+# 0.1.7-rc.2; not re-verified against a 0.2.2-rc.1 headless profile).
 # Add only workspace for a base-backed headless profile, never over dsh-web-app.
 - insert:
     - id: workspace

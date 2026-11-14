@@ -154,14 +154,14 @@ test('package manifest pins the verified npm latest baseline without claiming ot
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   for (const section of ['dependencies', 'devDependencies']) {
     for (const [packageName, version] of Object.entries(manifest[section] ?? {})) {
-      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.2.0-rc.2', `${section}.${packageName}`);
+      if (packageName.startsWith('@deepseek-ai/dsh-')) assert.equal(version, '0.2.2-rc.1', `${section}.${packageName}`);
     }
   }
   for (const name of ['agent', 'agent-preset-registry', 'session', 'session-title', 'llm']) {
-    assert.equal(manifest.peerDependencies[`@deepseek-ai/dsh-${name}`], '0.2.0-rc.2');
+    assert.equal(manifest.peerDependencies[`@deepseek-ai/dsh-${name}`], '0.2.2-rc.1');
     assert.equal(manifest.dependencies[`@deepseek-ai/dsh-${name}`], undefined);
   }
-  assert.equal(manifest.devDependencies['@deepseek-ai/cordis'], '4.0.4');
+  assert.equal(manifest.devDependencies['@deepseek-ai/cordis'], '4.1.0');
 });
 
 test('package.json and package-lock.json carry the same release version', () => {
@@ -185,7 +185,11 @@ test('release gate covers installed tarball and all CI matrix entries', () => {
   assert.equal(manifest.scripts['test:release'], 'node scripts/release-package-test.mjs');
   assert.match(workflow, /run: npm run test:release/);
   assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /node: \[22, 24\]/);
+  // The matrix must include the minimum Node major the package (and its DSH host) supports.
+  const minMajor = Number(/(\d+)/.exec(manifest.engines.node)[1]);
+  const matrix = /node: \[([^\]]+)\]/.exec(workflow);
+  assert.ok(matrix, 'CI workflow declares a node matrix');
+  assert.ok(matrix[1].split(',').map((v) => Number(v.trim())).includes(minMajor), `CI matrix covers Node ${minMajor}`);
   assert.match(gate, /pack\.filename/);
   assert.match(gate, /dsh-host\.test\.mjs/);
   assert.match(gate, /dsh-cli\.test\.mjs/);
@@ -198,7 +202,9 @@ test('current README and Goal dogfood stay aligned with the shipped control-plan
 
   assert.match(readme, new RegExp(`v${manifest.version.replaceAll('.', '\\.')}`));
   assert.match(readme, /tool count = 23/);
-  assert.match(dogfood, new RegExp(`version:\\s*['"]${manifest.version.replaceAll('.', '\\.')}['"]`));
+  // The dogfood derives its expected version from package.json instead of a literal.
+  assert.match(dogfood, /readFileSync\(new URL\('\.\.\/package\.json', import\.meta\.url\)/);
+  assert.match(dogfood, /bridge\?\.version === BRIDGE_VERSION/);
   assert.match(dogfood, /dsh_create_goal/);
   assert.match(dogfood, /dsh_wait_until_action_required/);
 });

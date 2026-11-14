@@ -10,7 +10,7 @@
 
 **The bridge connects the two sides. It does not replace DSH, modify DSH core, or route DSH model traffic through ChatGPT.**
 
-Published **0.6.0** targets DSH **0.1.7-rc.2** exactly. The unpublished working tree now targets **0.2.0-rc.2**, with local tests and packed official CLI/Web/MCP acceptance passing on 2026-10-08. The package version has not been bumped or republished. See the [current compatibility evidence](docs/dsh-compatibility-2026-10-08.md) and [published-release evidence](docs/dsh-compatibility-2026-09-28.md). After a successful connection, ChatGPT should see **tool count = 23**.
+Source **v0.7.0** targets DSH **0.2.2-rc.1** exactly (npm `latest` on 2026-11-14), with local tests and packed official CLI/Web/MCP acceptance passing. v0.7.0 is not yet on npm; the npm-published **0.6.0** targets DSH **0.1.7-rc.2**. See the [current compatibility evidence](docs/dsh-compatibility-2026-11-14.md) and [0.6.0 release evidence](docs/dsh-compatibility-2026-09-28.md). After a successful connection, ChatGPT should see **tool count = 23**.
 
 ## Why this exists
 
@@ -66,18 +66,20 @@ The screenshot is from a real DSH Web installation with sensitive values masked.
 
 ### Requirements
 
-- Node.js 22+
-- DeepSeek Harness `0.1.7-rc.2` (`dsh` on `PATH`)
+- Node.js 24.9+ for v0.7.0 (required by DSH 0.2.2-rc.1); Node.js 22+ for the npm-published 0.6.0
+- DeepSeek Harness `0.2.2-rc.1` for v0.7.0, or `0.1.7-rc.2` for the npm-published 0.6.0 (`dsh` on `PATH`)
 - a DSH Web profile/runtime
 - ChatGPT access that can use the currently supported MCP/custom-app connection flow
 
 ### 1. Install the plugin
 
-Install v0.6.0 into the matching DSH 0.1.7-rc.2 host:
+Install v0.7.0 into the matching DSH 0.2.2-rc.1 host:
 
 ```bash
-dsh plugin --profile web add dsh-chatgpt-bridge@0.6.0
+dsh plugin --profile web add dsh-chatgpt-bridge@0.7.0
 ```
+
+Until v0.7.0 is published on npm, either use the source install below or install `dsh-chatgpt-bridge@0.6.0` into a DSH 0.1.7-rc.2 host. Each bridge version pins one exact DSH host; mixing them fails peer resolution.
 
 To install from a reviewed source checkout instead:
 
@@ -87,10 +89,10 @@ npm run typecheck
 npm run build
 npm test
 npm run test:release
-pnpm dlx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add "file:$PWD"
+npx --yes @deepseek-ai/dsh@0.2.2-rc.1 plugin --profile web add "file:$PWD"
 ```
 
-Source installation into a real profile was not part of release verification. Back up the profile before upgrading DSH: DSH owns V3 session migration. `npm install dsh-chatgpt-bridge` alone is not enough: the plugin must be added to a DSH profile bundle. Published v0.5.1 remains tied to the older DSH 0.1.1-rc.2 host.
+Source installation into a real profile was not part of release verification. Back up the profile before upgrading DSH: DSH owns V3 session migration. `npm install dsh-chatgpt-bridge` alone is not enough: the plugin must be added to a DSH profile bundle. Published v0.6.0 remains tied to DSH 0.1.7-rc.2 and v0.5.1 to DSH 0.1.1-rc.2.
 
 ### 2. Start DSH Web
 
@@ -152,7 +154,7 @@ After connecting, refresh/rescan the MCP tools in ChatGPT and run a read-only ch
 A healthy first check should look like:
 
 ```text
-bridge version = 0.6.0
+bridge version = 0.7.0
 tool count = 23
 ```
 
@@ -191,6 +193,9 @@ This is a **control bridge**, not a remote shell replacement.
 
 - The MCP server binds to loopback by default.
 - It binds `127.0.0.1`, never exposes a public interface, and never self-hosts a tunnel.
+- Browser requests are rejected unless their `Origin` is a loopback page (DNS-rebinding defense). Tunnel and CLI traffic, which sends no `Origin`, is unaffected; a hosted browser-based MCP inspector will be refused.
+- Every tool declares MCP annotations (`readOnlyHint`, `destructiveHint`, …), so ChatGPT can tell inspection tools from actions such as `dsh_approve` or `dsh_stop_goal`.
+- Error results are redacted the same way as successful results.
 - DSH remains responsible for its own sandbox, approvals and workspace rules.
 - The bridge only works with workspaces already registered in DSH.
 - Tokens and tunnel/runtime secrets are stored outside the repository and should never be committed.
@@ -263,10 +268,12 @@ This is an actively maintained, independent DSH plugin. Compatibility releases t
 Current source version:
 
 ```text
-dsh-chatgpt-bridge@0.6.0
+dsh-chatgpt-bridge@0.7.0
 ```
 
-Compatibility: **v0.6.0 → DSH 0.1.7-rc.2**. The exact release commit passed Ubuntu and Windows CI on Node 22 and 24, including a packed-package install and model-free official DSH CLI/Web/MCP integration. Browser UI, real-model work, ChatGPT and tunnel end-to-end remain unverified for this version. The older published v0.5.1 package targets DSH 0.1.1-rc.2.
+Compatibility: **v0.7.0 → DSH 0.2.2-rc.1** (not yet published). Typecheck, build, the unit suite and the packed-package install with model-free official DSH CLI/Web/MCP integration pass locally on Windows / Node 24; exact-commit CI (Ubuntu/Windows, Node 24), browser UI, real-model work, ChatGPT and tunnel end-to-end are still unverified for this version. The npm-published v0.6.0 targets DSH 0.1.7-rc.2 and v0.5.1 targets DSH 0.1.1-rc.2.
+
+A weekly, non-gating CI job (`dsh-next-compat.yml`) runs the suite against the DSH `next` tag to give early warning before the next compatibility release.
 
 Distribution and ecosystem listings:
 
@@ -287,7 +294,7 @@ The bridge is a standalone DSH plugin with no DSH core modifications. Developmen
 - process-ownership safety;
 - regression and compatibility testing across supported DSH releases.
 
-Before publishing a new version, run `npm run typecheck`, `npm run build`, `npm test` and `npm run test:release`. The last command installs the actual tarball and exact DSH host in a disposable directory.
+Before publishing a new version, run `npm run typecheck`, `npm run build`, `npm test` and `npm run test:release`. The last command installs the actual tarball and exact DSH host in a disposable directory. `lib/` is committed and CI fails if it differs from a fresh build, so commit the rebuilt `lib/` with every `src/` change. npm is the only supported package manager (`package-lock.json`).
 
 ## License
 

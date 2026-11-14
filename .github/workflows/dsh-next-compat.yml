@@ -1,0 +1,51 @@
+name: DSH next compatibility
+
+# Early warning for the next DSH host. Runs the suite against every
+# @deepseek-ai/dsh-* package listed in package.json at the npm `next` tag.
+# It is intentionally not a PR gate (schedule / manual only).
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  next-host:
+    name: DSH next / Node 24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install DSH packages at the next dist-tag (not saved)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEXT="$(npm view @deepseek-ai/dsh@next version)"
+          echo "Resolved @deepseek-ai/dsh@next = ${NEXT}"
+          echo "DSH_NEXT_VERSION=${NEXT}" >> "$GITHUB_ENV"
+          PKGS="$(node -e '
+            const p = require("./package.json");
+            const names = new Set();
+            for (const k of ["dependencies", "peerDependencies", "devDependencies"]) {
+              for (const n of Object.keys(p[k] ?? {})) {
+                if (n.startsWith("@deepseek-ai/dsh-")) names.add(n);
+              }
+            }
+            process.stdout.write([...names].sort().map((n) => n + "@" + process.argv[1]).join(" "));
+          ' "${NEXT}")"
+          echo "Installing: ${PKGS}"
+          npm install --no-save ${PKGS}
+          npm ls --depth=0 @deepseek-ai/dsh-agent @deepseek-ai/dsh-session @deepseek-ai/cordis || true
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test

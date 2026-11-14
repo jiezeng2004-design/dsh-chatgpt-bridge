@@ -169,7 +169,7 @@ test('discover: running process is observed with pid and proxy flag, never the c
 
 test('discover: parseTunnelCommandLine extracts profile and proxy flag', () => {
   const parsed = parseTunnelCommandLine(
-    '"D:\\Application\\tunnel-client\\tunnel-client.exe" run --profile dsh-chatgpt-bridge --control-plane.http-proxy env:TUNNEL_CONTROL_PROXY --mcp.extra-headers "Authorization: env:DSH_BRIDGE_AUTH"',
+    '"D:\\tools\\tunnel-client\\tunnel-client.exe" run --profile dsh-chatgpt-bridge --control-plane.http-proxy env:TUNNEL_CONTROL_PROXY --mcp.extra-headers "Authorization: env:DSH_BRIDGE_AUTH"',
   );
   assert.equal(parsed.profileName, 'dsh-chatgpt-bridge');
   assert.equal(parsed.proxyFlag, true);
