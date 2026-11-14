@@ -5,7 +5,8 @@
 ### Compatibility boundary
 
 - Target exactly DSH `0.2.2-rc.1` (npm `latest` on 2026-11-14), Cordis 4.1.0
-  and Schemastery 3.19.0. The version moves to 0.7.0 so one bridge version no
+  and Schemastery 3.19.0. Requires Node.js 24.9+ (the DSH 0.2.2-rc.1 CLI's
+  `engines`); CI drops Node 22. The version moves to 0.7.0 so one bridge version no
   longer names two hosts: npm 0.6.0 stays on DSH 0.1.7-rc.2.
 - Model selection is owned by the Agent in DSH 0.2.2 (`agent.model`); the
   bridge no longer derives a selection from the session log and only installs

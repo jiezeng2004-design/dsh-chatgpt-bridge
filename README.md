@@ -66,7 +66,7 @@ The screenshot is from a real DSH Web installation with sensitive values masked.
 
 ### Requirements
 
-- Node.js 22+
+- Node.js 24.9+ for v0.7.0 (required by DSH 0.2.2-rc.1); Node.js 22+ for the npm-published 0.6.0
 - DeepSeek Harness `0.2.2-rc.1` for v0.7.0, or `0.1.7-rc.2` for the npm-published 0.6.0 (`dsh` on `PATH`)
 - a DSH Web profile/runtime
 - ChatGPT access that can use the currently supported MCP/custom-app connection flow
@@ -271,7 +271,7 @@ Current source version:
 dsh-chatgpt-bridge@0.7.0
 ```
 
-Compatibility: **v0.7.0 → DSH 0.2.2-rc.1** (not yet published). Typecheck, build, the unit suite and the packed-package install with model-free official DSH CLI/Web/MCP integration pass locally on Windows / Node 24; exact-commit Ubuntu/Windows × Node 22/24 CI, browser UI, real-model work, ChatGPT and tunnel end-to-end are still unverified for this version. The npm-published v0.6.0 targets DSH 0.1.7-rc.2 and v0.5.1 targets DSH 0.1.1-rc.2.
+Compatibility: **v0.7.0 → DSH 0.2.2-rc.1** (not yet published). Typecheck, build, the unit suite and the packed-package install with model-free official DSH CLI/Web/MCP integration pass locally on Windows / Node 24; exact-commit CI (Ubuntu/Windows, Node 24), browser UI, real-model work, ChatGPT and tunnel end-to-end are still unverified for this version. The npm-published v0.6.0 targets DSH 0.1.7-rc.2 and v0.5.1 targets DSH 0.1.1-rc.2.
 
 A weekly, non-gating CI job (`dsh-next-compat.yml`) runs the suite against the DSH `next` tag to give early warning before the next compatibility release.
 

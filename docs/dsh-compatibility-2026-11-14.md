@@ -76,13 +76,18 @@ Windows 11, Node 24.18.1, npm 11.16.0, from a clean `npm install`:
 - No browser UI interaction; the 2026-10-08 browser acceptance was not
   repeated on 0.2.2-rc.1.
 - No ChatGPT connection and no public tunnel.
-- No exact-commit CI run (Ubuntu/Windows, Node 22/24), and the new `lib/` check
+- No exact-commit CI run (Ubuntu/Windows, Node 24), and the new `lib/` check
   and `dsh-next-compat.yml` have not been run on GitHub. Declaration output
   can reorder union members (seen in `lib/types/index.d.ts`); the `lib/`
   check assumes the pinned TypeScript emits identically on Linux.
 - Resume with the Agent-owned model selection was exercised only by the
   model-free cold-resume integration test, not with a real provider.
-- The unit suite and Node 22 were only run on Windows with Node 24.
+- `@deepseek-ai/dsh@0.2.2-rc.1` declares `engines.node >=24.9.0` (0.2.0-rc.2
+  declared none), so the bridge now requires Node 24.9+ and CI drops Node 22.
+  The first PR CI run showed the packed install still worked on Ubuntu /
+  Node 22 apart from an EBADENGINE warning, but that is not a supported host.
+- Windows CI runners needed more than 10 minutes to install the host graph;
+  the packed-install step limit is now 20 minutes.
 - `next=0.2.2-rc.3` was not tested; only its Cordis and Schemastery ranges
   were compared (the same as rc.1).
 - No real DSH profile or session migration was performed.

@@ -31,10 +31,10 @@ try {
   }
   const hostVersion = manifest.peerDependencies['@deepseek-ai/dsh-agent'];
   assert.match(hostVersion, /^\d+\.\d+\.\d+-rc\.\d+$/);
-  // Fresh Windows runners can need more than five minutes to fetch the full
-  // official host graph. Keep the contract-test subprocess on the short limit.
+  // Fresh Windows runners can need more than ten minutes to fetch the full
+  // DSH 0.2.2 host graph. Keep the contract-test subprocess on the short limit.
   run([npmCli, 'install', '--prefix', temp, '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
-    join(temp, pack.filename), `@deepseek-ai/dsh@${hostVersion}`], temp, false, 600000);
+    join(temp, pack.filename), `@deepseek-ai/dsh@${hostVersion}`], temp, false, 1200000);
   const installed = join(temp, 'node_modules', manifest.name);
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'))).version, manifest.version);
   // Tests resolve both ../../lib and official dependencies from the installed

@@ -40,7 +40,7 @@
     "plugin"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=24.9.0"
   },
   "dsh": {
     "bundle": {

@@ -185,7 +185,11 @@ test('release gate covers installed tarball and all CI matrix entries', () => {
   assert.equal(manifest.scripts['test:release'], 'node scripts/release-package-test.mjs');
   assert.match(workflow, /run: npm run test:release/);
   assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /node: \[22, 24\]/);
+  // The matrix must include the minimum Node major the package (and its DSH host) supports.
+  const minMajor = Number(/(\d+)/.exec(manifest.engines.node)[1]);
+  const matrix = /node: \[([^\]]+)\]/.exec(workflow);
+  assert.ok(matrix, 'CI workflow declares a node matrix');
+  assert.ok(matrix[1].split(',').map((v) => Number(v.trim())).includes(minMajor), `CI matrix covers Node ${minMajor}`);
   assert.match(gate, /pack\.filename/);
   assert.match(gate, /dsh-host\.test\.mjs/);
   assert.match(gate, /dsh-cli\.test\.mjs/);
