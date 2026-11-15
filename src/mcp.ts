@@ -12,6 +12,8 @@ import type { BridgeLogger } from './log.js';
 import { redactValue } from './redact.js';
 import { parseConstraints } from './goal-constraints.js';
 import { BRIDGE_NAME, BRIDGE_VERSION } from './version.js';
+import { registerAdvisorTools } from './advisor/mcp-tools.js';
+import type { AdvisorRuntime } from './advisor/runtime.js';
 
 const actionClassSchema = z.enum([
   'filesystem.read',
@@ -56,7 +58,7 @@ type TextResult = {
  * for plain-object values, the identical redacted object as structuredContent.
  * No tool declares an outputSchema, so the SDK performs no validation on it.
  */
-function textResult(value: unknown): TextResult {
+export function textResult(value: unknown): TextResult {
   const redacted = redactValue(value);
   const text = JSON.stringify(redacted, null, 2);
   const result: TextResult = { content: [{ type: 'text', text }] };
@@ -64,7 +66,7 @@ function textResult(value: unknown): TextResult {
   return result;
 }
 
-function errorResult(error: unknown): TextResult & { isError: true } {
+export function errorResult(error: unknown): TextResult & { isError: true } {
   let payload: { error: Record<string, unknown> };
   if (error instanceof BridgeError) {
     payload = { error: { code: error.code, message: error.message, ...(error.details === undefined ? {} : { details: error.details }) } };
@@ -78,7 +80,7 @@ function errorResult(error: unknown): TextResult & { isError: true } {
 }
 
 /** Wrap one async handler into the MCP error convention. */
-function safe<A>(handler: (args: A) => Promise<unknown>) {
+export function safe<A>(handler: (args: A) => Promise<unknown>) {
   return async (args: A): Promise<TextResult> => {
     try {
       return textResult(await handler(args));
@@ -152,7 +154,8 @@ export function toolAnnotations(name: string): {
   };
 }
 
-export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger): McpServer {
+export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: BridgeLogger, advisor?: AdvisorRuntime): McpServer {
+  const mode = cfg.mode === 'advisor' ? 'advisor' : 'controller';
   const server = new McpServer(
     { name: BRIDGE_NAME, version: BRIDGE_VERSION },
     { capabilities: { tools: {} } },
@@ -183,6 +186,11 @@ export function createMcpServer(bridge: Bridge, cfg: ResolvedBridgeConfig, log: 
     },
     safe(async () => bridge.listWorkspaces()),
   );
+
+  if (mode === 'advisor') {
+    registerAdvisorTools(server, bridge, cfg, log, advisor);
+    return server;
+  }
 
   server.registerTool(
     'dsh_create_session',
