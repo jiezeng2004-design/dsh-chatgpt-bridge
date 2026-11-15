@@ -8,6 +8,9 @@
  * The restart is performed by this script via child_process (the profile's
  * process is matched by its command line). Requires the bridge profile to be
  * running and a token file at $DSH_HOME/chatgpt-bridge.token.
+ *
+ * Workspace: pass --workspace <id|path|title> or set DSH_BRIDGE_DOGFOOD_WORKSPACE
+ * (required; must be a workspace registered with the bridge).
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,6 +24,13 @@ const TOKEN_FILE = join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'chatgp
 const PROFILE = process.env.DSH_CHATGPT_BRIDGE_PROFILE ?? 'chatgpt-bridge';
 const WORKDIR = process.env.DSH_CHATGPT_BRIDGE_WORKDIR ?? process.cwd();
 const LOG = process.env.DSH_CHATGPT_BRIDGE_BOOTLOG ?? join(process.cwd(), 'boot-console.log');
+
+const wsArg = process.argv.indexOf('--workspace');
+const WORKSPACE = (wsArg >= 0 && process.argv[wsArg + 1] ? process.argv[wsArg + 1] : process.env.DSH_BRIDGE_DOGFOOD_WORKSPACE) || '';
+if (WORKSPACE === '') {
+  console.error('Missing workspace: pass --workspace <id|path|title> or set DSH_BRIDGE_DOGFOOD_WORKSPACE to a registered workspace.');
+  process.exit(2);
+}
 
 function readToken() {
   return existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE, 'utf8').trim() : '';
@@ -84,10 +94,8 @@ console.log('phase 1: create a marker session');
 {
   const { client } = await connect();
   try {
-    const ws = await call(client, 'dsh_list_workspaces');
-    const target = (ws.find((w) => w.title === 'mix_workspace') ?? ws[0]).title;
     const created = await call(client, 'dsh_create_session', {
-      workspace: target,
+      workspace: WORKSPACE,
       title: 'RESUME-TEST-731',
       initial_message: 'Remember the marker: ALPHA-731. Reply with exactly: ALPHA-731',
     });

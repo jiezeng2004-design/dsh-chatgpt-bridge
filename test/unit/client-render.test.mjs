@@ -250,7 +250,7 @@ test('client: unclaimed config overlays discovered proxy and official-profile ke
       bridge: {},
     },
     secrets: { runtimeApiKeyConfigured: false },
-    detection: { installed: true, executablePath: 'D:\\Application\\tunnel-client\\tunnel-client.exe' },
+    detection: { installed: true, executablePath: 'D:\\tools\\tunnel-client\\tunnel-client.exe' },
     discovered: {
       proxy: { host: '127.0.0.1', port: 7892, source: 'env' },
       proxyInUse: true,

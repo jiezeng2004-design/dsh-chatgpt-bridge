@@ -17,7 +17,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { BridgeLogger } from './log.js';
-import { bridgeHttpUrl, isLoopbackHost } from './config.js';
+import { bridgeHttpUrl, isLoopbackHost, isLoopbackOrigin } from './config.js';
 
 export interface HttpServerHandle {
   port: number;
@@ -34,7 +34,7 @@ function safeEqual(a: string, b: string): boolean {
 
 export const MAX_MCP_BODY_BYTES = 4 * 1024 * 1024; // 4MB
 
-/** Read and parse a JSON request body (empty bodies yield undefined). */
+/** Read and parse a JSON request body (empty bodies yield undefined; malformed JSON rejects with 'invalid-json'). */
 function readJsonBody(req: IncomingMessage, maxBytes = MAX_MCP_BODY_BYTES): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -54,15 +54,27 @@ function readJsonBody(req: IncomingMessage, maxBytes = MAX_MCP_BODY_BYTES): Prom
       try {
         resolve(JSON.parse(raw));
       } catch {
-        resolve(undefined);
+        reject(new Error('invalid-json'));
       }
     });
     req.on('error', reject);
   });
 }
 
-function setCors(res: ServerResponse): void {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+/**
+ * Origin handling (MCP spec: servers MUST validate Origin against DNS
+ * rebinding). A request carrying an Origin header comes from a browser; only
+ * loopback pages may talk to this endpoint. Requests without Origin
+ * (server-side tunnel traffic from ChatGPT, CLI clients) are unaffected.
+ *
+ * Deliberately NOT checked: the Host header. A tunnel may forward the public
+ * hostname as Host, so a Host allow-list would break ChatGPT connectivity;
+ * the Origin check plus bearer-token auth covers the browser threat model.
+ */
+function setCors(res: ServerResponse, origin: string | undefined): void {
+  res.setHeader('Vary', 'Origin');
+  if (origin === undefined) return;
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Last-Event-ID');
   res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id, Last-Event-ID');
@@ -103,9 +115,42 @@ export function startHttpServer(
     const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
     const MAX_SESSIONS = 128;
 
+    const dropSession = (id: string, s: SessionEntry): void => {
+      sessions.delete(id);
+      void s.transport.close().catch(() => {});
+      void s.server.close().catch(() => {});
+    };
+
+    /** Called before creating a session: drop idle sessions, then evict least-recently-active ones at capacity. */
+    const makeRoomForSession = (): void => {
+      const now = Date.now();
+      for (const [id, s] of [...sessions.entries()]) {
+        if (now - s.lastActiveAt > SESSION_IDLE_TIMEOUT_MS) dropSession(id, s);
+      }
+      while (sessions.size >= MAX_SESSIONS) {
+        let oldestId: string | undefined;
+        let oldest: SessionEntry | undefined;
+        for (const [id, s] of sessions) {
+          if (oldest === undefined || s.lastActiveAt < oldest.lastActiveAt) {
+            oldestId = id;
+            oldest = s;
+          }
+        }
+        if (oldestId === undefined || oldest === undefined) break;
+        dropSession(oldestId, oldest);
+      }
+    };
+
     const httpServer = createServer(async (req, res) => {
       try {
-        setCors(res);
+        const origin = req.headers.origin;
+        if (origin !== undefined && !isLoopbackOrigin(origin)) {
+          log.warn(`MCP request rejected: forbidden Origin ${JSON.stringify(origin.slice(0, 200))}`);
+          res.setHeader('Vary', 'Origin');
+          sendJson(res, 403, { error: 'forbidden-origin' });
+          return;
+        }
+        setCors(res, origin);
         if (req.method === 'OPTIONS') {
           res.statusCode = 204;
           res.end();
@@ -140,17 +185,9 @@ export function startHttpServer(
           sendJson(res, sessionId !== undefined ? 404 : 400, { error: 'session-not-found' });
           return;
         }
-        // Sweep idle or overflow sessions before creating a new one
-        if (sessions.size >= MAX_SESSIONS) {
-          const now = Date.now();
-          for (const [id, s] of [...sessions.entries()]) {
-            if (now - s.lastActiveAt > SESSION_IDLE_TIMEOUT_MS || sessions.size >= MAX_SESSIONS) {
-              sessions.delete(id);
-              void s.transport.close().catch(() => {});
-              void s.server.close().catch(() => {});
-            }
-          }
-        }
+        // Parse the body before allocating a session so bad JSON costs nothing.
+        const parsedBody = await readJsonBody(req);
+        makeRoomForSession();
         // Fresh MCP session: one transport + one server instance.
         let entry: SessionEntry | undefined;
         const transport = new StreamableHTTPServerTransport({
@@ -166,11 +203,16 @@ export function startHttpServer(
           if (id !== undefined) sessions.delete(id);
           void entry?.server.close().catch(() => {});
         };
-        const parsedBody = req.method === 'POST' ? await readJsonBody(req) : undefined;
         await transport.handleRequest(req, res, parsedBody);
       } catch (error) {
-        log.error(`MCP HTTP request failed: ${error instanceof Error ? error.message : String(error)}`);
+        if (!(error instanceof Error && error.message === 'invalid-json')) {
+          log.error(`MCP HTTP request failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
         if (!res.headersSent) {
+          if (error instanceof Error && error.message === 'invalid-json') {
+            sendJson(res, 400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null });
+            return;
+          }
           const isLarge = error instanceof Error && error.message === 'payload-too-large';
           sendJson(res, isLarge ? 413 : 500, { error: isLarge ? 'payload-too-large' : 'internal-error' });
         } else {

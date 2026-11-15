@@ -1,10 +1,25 @@
 
+/**
+ * Manual demo: drives the booted DSH bridge over MCP through an analysis turn
+ * and follow-ups. Talks to http://127.0.0.1:3456/mcp.
+ *
+ * Usage: node scripts/demo-flow.mjs [--workspace <id|path|title>]
+ * Workspace: pass --workspace or set DSH_BRIDGE_DOGFOOD_WORKSPACE (required; must
+ * be a workspace registered with the bridge).
+ */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 const BASE = 'http://127.0.0.1:3456/mcp';
+
+const wsArg = process.argv.indexOf('--workspace');
+const WORKSPACE = (wsArg >= 0 && process.argv[wsArg + 1] ? process.argv[wsArg + 1] : process.env.DSH_BRIDGE_DOGFOOD_WORKSPACE) || '';
+if (WORKSPACE === '') {
+  console.error('Missing workspace: pass --workspace <id|path|title> or set DSH_BRIDGE_DOGFOOD_WORKSPACE to a registered workspace.');
+  process.exit(2);
+}
 const token = readFileSync(join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'chatgpt-bridge.token'), 'utf8').trim();
 const transport = new StreamableHTTPClientTransport(new URL(BASE), { requestInit: { headers: { Authorization: `Bearer ${token}` } } });
 const client = new Client({ name: 'demo-flow', version: '0' });
@@ -27,10 +42,8 @@ async function waitCompleted(sid, timeoutMs = 600000) {
 }
 try {
   console.log('[demo] step 1: analyze the project (no modifications)');
-  const ws = await call('dsh_list_workspaces');
-  const target = (ws.find(w => w.title === 'mix_workspace') ?? ws[0]).title;
   const created = await call('dsh_create_session', {
-    workspace: target,
+    workspace: WORKSPACE,
     title: 'bridge-demo-session',
     initial_message: '先检查这个项目（dsh-bridge-demo 子目录），不修改文件。告诉我结构、当前测试和最值得改善的 3 个问题。',
   });

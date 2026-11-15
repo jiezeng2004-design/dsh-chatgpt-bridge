@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * Real MCP dogfood for the v0.6.0 compatibility release candidate.
+ * Real MCP dogfood for the bridge compatibility release (version read from package.json).
  *
  * Dogfood A — minimal 35-second Goal (no workspace scan, no file writes).
  * Dogfood B — mock release DAG: block one branch, defer it, finish the
  *             independent branch, then resume. No real npm publish.
  *
  * Usage: node scripts/goal-control-dogfood.mjs [--workspace <id|path|title>]
+ * Workspace: pass --workspace <id|path|title> or set DSH_BRIDGE_DOGFOOD_WORKSPACE.
+ * Without either, the first registered workspace is used.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,6 +16,7 @@ import { homedir } from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+const BRIDGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const BASE = process.env.DSH_CHATGPT_BRIDGE_URL ?? 'http://127.0.0.1:3456/mcp';
 const TOKEN_FILE = join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'chatgpt-bridge.token');
 
@@ -62,7 +65,7 @@ async function waitLoop(client, sessionId, timeoutMs = 180000) {
 }
 
 const wsArg = process.argv.indexOf('--workspace');
-const workspace = wsArg >= 0 && process.argv[wsArg + 1] ? process.argv[wsArg + 1] : undefined;
+const workspace = wsArg >= 0 && process.argv[wsArg + 1] ? process.argv[wsArg + 1] : (process.env.DSH_BRIDGE_DOGFOOD_WORKSPACE || undefined);
 
 console.log('dsh-chatgpt-bridge goal-control dogfood');
 console.log('target:', BASE);
@@ -70,7 +73,7 @@ console.log('target:', BASE);
 const transport = new StreamableHTTPClientTransport(new URL(BASE), {
   requestInit: readToken() ? { headers: { Authorization: `Bearer ${readToken()}` } } : {},
 });
-const client = new Client({ name: 'dsh-chatgpt-bridge-goal-dogfood', version: '0.6.0' });
+const client = new Client({ name: 'dsh-chatgpt-bridge-goal-dogfood', version: BRIDGE_VERSION });
 
 try {
   await client.connect(transport);
@@ -78,7 +81,7 @@ try {
   console.log('\n[1] health + capabilities');
   const health = await call(client, 'dsh_health');
   check('health status ok', health.isError === false && health.parsed?.status === 'ok', JSON.stringify(health.parsed));
-  check('version 0.6.0', health.parsed?.bridge?.version === '0.6.0', String(health.parsed?.bridge?.version));
+  check(`version ${BRIDGE_VERSION}`, health.parsed?.bridge?.version === BRIDGE_VERSION, String(health.parsed?.bridge?.version));
 
   const listed = await call(client, 'dsh_list_workspaces');
   const workspaces = listed.parsed?.workspaces ?? listed.parsed ?? [];

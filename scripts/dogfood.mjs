@@ -8,6 +8,8 @@
  * running/cancel, and secret redaction.
  *
  * Usage: node scripts/dogfood.mjs [--workspace <id|path|title>]
+ * Workspace: pass --workspace <id|path|title> or set DSH_BRIDGE_DOGFOOD_WORKSPACE.
+ * Without either, the first registered workspace is used.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -58,7 +60,7 @@ async function waitFor(client, sessionId, wanted, timeoutMs = 600000, stepMs = 1
 }
 
 const wsArg = process.argv.indexOf('--workspace');
-const workspace = wsArg >= 0 && process.argv[wsArg + 1] ? process.argv[wsArg + 1] : undefined;
+const workspace = wsArg >= 0 && process.argv[wsArg + 1] ? process.argv[wsArg + 1] : (process.env.DSH_BRIDGE_DOGFOOD_WORKSPACE || undefined);
 
 console.log('dsh-chatgpt-bridge dogfooding');
 console.log('target:', BASE);

@@ -1,4 +1,4 @@
-// Run in a disposable copy with @deepseek-ai/dsh@0.2.0-rc.2 installed.
+// Run in a disposable copy with @deepseek-ai/dsh@0.2.2-rc.1 installed.
 // Real Cordis, AgentLoop, V3 JSONL, approvals and questions; no credentials or model adapter.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import { Context } from '@deepseek-ai/cordis';
 import Agents from '@deepseek-ai/dsh-agent';
 import AgentLoop from '@deepseek-ai/dsh-agent-loop';
 import Sessions, { SessionId } from '@deepseek-ai/dsh-session';
-import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl';
+import * as Persistence from '@deepseek-ai/dsh-session-persistence-jsonl';
 import Projections from '@deepseek-ai/dsh-session-projection';
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import Tools from '@deepseek-ai/dsh-tools';

@@ -1,12 +1,21 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Bridge, BridgeError } from '../../lib/bridge.js';
 
+// A fresh, empty (non-git) temp directory stands in for the workspace so that
+// the git probes spawned by decideApproval never touch a real checkout.
+const WORKSPACE_ROOT = realpathSync(mkdtempSync(join(tmpdir(), 'bridge-test-')));
+after(() => {
+  rmSync(WORKSPACE_ROOT, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});
+
 const MIX = {
   id: 'ws-1',
-  title: 'mix_workspace',
-  path: 'D:\\Agent\\agent_workplace\\mix_workspace',
+  title: 'project',
+  path: WORKSPACE_ROOT,
   createdAt: 'x',
   updatedAt: 'x',
   sessionIds: [],
@@ -97,13 +106,37 @@ function makeStatefulBridge() {
   return { bridge, agents, created };
 }
 
-async function waitForApproval(bridge, timeoutMs = 2000) {
+/**
+ * Wait until `decideApproval` has parked a pending approval.
+ *
+ * Parking happens only after decideApproval has finished its async work
+ * (workspace-baseline/drift checks spawn several `git` child processes), so
+ * under full-suite or CPU load it can take many seconds. We therefore wait on
+ * the condition, not on a short wall-clock budget: poll the approvals map and
+ * also watch the decision promise, so that if decideApproval settles WITHOUT
+ * parking (auto-approve, reject, skip) we fail immediately with the real
+ * outcome instead of timing out. The long deadline is only a deadlock guard.
+ */
+async function waitForApproval(bridge, decision, timeoutMs = 60_000) {
+  let settled;
+  decision.then(
+    (outcome) => { settled = { outcome }; },
+    (error) => { settled = { error }; },
+  );
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (bridge['approvals'].size > 0) return [...bridge['approvals'].keys()][0];
+    if (settled !== undefined) {
+      if (bridge['approvals'].size > 0) return [...bridge['approvals'].keys()][0];
+      throw new Error(
+        settled.error !== undefined
+          ? `decideApproval rejected before parking an approval: ${settled.error}`
+          : `decideApproval settled with '${settled.outcome}' without parking an approval`,
+      );
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error('timed out waiting for parked approval');
+  throw new Error(`timed out after ${timeoutMs}ms waiting for parked approval`);
 }
 
 function toolCall(seq, callId, command) {
@@ -244,7 +277,7 @@ test('R5 / A05: when approve is blocked by the platform layer, reject and stop s
   agent.session.events.push(toolCall(1, 'c-pub', 'npm publish'));
 
   const parked = bridge.decideApproval({ agent, toolName: 'bash', callId: 'c-pub', reason: 'publish' });
-  const approvalId = await waitForApproval(bridge);
+  const approvalId = await waitForApproval(bridge, parked);
   assert.equal(bridge['approvals'].size, 1);
 
   bridge['apiProxy'] = { respond: async () => ({ accepted: false, reason: 'platform-deny' }) };
@@ -272,7 +305,7 @@ test('R5 / A05: when approve is blocked by the platform layer, reject and stop s
 
   agent.session.events.push(toolCall(2, 'c-pub-2', 'npm publish'));
   const parkedAgain = bridge.decideApproval({ agent, toolName: 'bash', callId: 'c-pub-2' });
-  const secondId = await waitForApproval(bridge);
+  const secondId = await waitForApproval(bridge, parkedAgain);
   bridge['approvals'].get(secondId).muxRpcId = 'rpc-blocked-2';
   const stopped = await bridge.stopGoal(started.session_id);
   assert.equal(stopped.stopped, true);
@@ -293,7 +326,7 @@ test('snapshot-only sessions distinguish workspace writes from external paths', 
 
   events.push(fileToolCall(2, 'c-outside', 'write', { file_path: join('..', 'outside.ts'), content: 'x' }));
   const parked = bridge.decideApproval({ agent, toolName: 'write', callId: 'c-outside' });
-  const approvalId = await waitForApproval(bridge);
+  const approvalId = await waitForApproval(bridge, parked);
   const pending = bridge['approvals'].get(approvalId);
   assert.equal(pending.capability, 'external_path.write');
   assert.equal(await bridge.approve(started.session_id, approvalId, 'reject').then((item) => item.outcome), 'rejected');

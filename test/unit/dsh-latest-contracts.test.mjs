@@ -17,7 +17,7 @@ test('headless overlay only adds workspace, inheriting storage from latest base'
 });
 
 for (const withPreset of [false, true]) {
-  test(`setup uses the explicit Agent, not removed ctx.agent (preset=${withPreset})`, async () => {
+  test(`setup composes without removed ctx.agent or a bridge-owned model selection (preset=${withPreset})`, async () => {
     const ctx = new Context();
     const mounted = [];
     if (withPreset) ctx.provide('agentPresets', {
@@ -25,16 +25,16 @@ for (const withPreset of [false, true]) {
       mount: async (scope, id) => { mounted.push(id); assert.equal(scope, ctx); },
     });
     const bridge = new Bridge(ctx, {}, log);
-    const logged = { provider: 'test-provider', model: 'test-model', reasoningEffort: 'high' };
-    const agent = { session: { requestHeader: () => ({ config: logged }) } };
     try {
       const composition = await bridge.composeSetupFor(undefined);
       assert.equal(ctx.agent, undefined);
-      await composition.setup(ctx, agent);
-      const assembly = await ctx.waterfall('system-prompt/assemble', {}, {}, async () => ({ variables: {} }));
-      assert.equal(assembly.variables.model, logged.model);
-      const request = await ctx.waterfall('agent/request', {}, async () => ({ provider: 'wrong', model: 'wrong' }));
-      assert.deepEqual(request, logged);
+      // DSH 0.2.2 owns model selection on `agent.model` (durable projection);
+      // setup only installs the scoped switch-notice listener and takes no Agent.
+      assert.equal(composition.setup.length <= 1, true);
+      await composition.setup(ctx);
+      // The bridge must not rewrite the (deprecated) per-request route itself.
+      const request = await ctx.waterfall('agent/request', {}, async () => ({ provider: 'host', model: 'host-model' }));
+      assert.deepEqual(request, { provider: 'host', model: 'host-model' });
       assert.deepEqual(mounted, withPreset ? ['test-preset'] : []);
     } finally { await ctx.fiber.dispose(); }
   });

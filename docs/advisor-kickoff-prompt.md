@@ -1,6 +1,6 @@
 # 新会话启动指令(Opus 编排,Codex 执行)
 
-用法:在工作树 `D:\Agent\agent_workplace\mix_workspace\dsh-chatgpt-bridge\.claude\worktrees\dsh-with-chatgpt-41d477` 里开新会话,选 Opus,把下面「启动指令」整段粘贴进去。
+用法:在本仓库的一个工作树(下文记作 `<工作树路径>`,分支记作 `<分支名>`)里开新会话,选 Opus,把下面「启动指令」整段粘贴进去,并把两个占位符换成实际值。
 
 ## 启动指令
 
@@ -9,8 +9,8 @@
 你负责拆解、审查、验收;具体编码交给 Codex 子代理。
 
 ## 第 0 步:就位(先做完再动手)
-1. 工作目录必须是 D:\Agent\agent_workplace\mix_workspace\dsh-chatgpt-bridge\.claude\worktrees\dsh-with-chatgpt-41d477,
-   分支 claude/dsh-with-chatgpt-41d477。用 git status 和 git log -3 确认;所有命令都在此目录跑,不要 cd 到别处。
+1. 工作目录必须是 <工作树路径>,
+   分支 <分支名>。用 git status 和 git log -3 确认;所有命令都在此目录跑,不要 cd 到别处。
 2. 通读 docs/advisor-mode-plan.md(第 5 至 10 节是执行依据)。
 3. 核对方案与代码是否一致,至少读:src/mcp.ts、src/bridge.ts(resolveWorkspace、waitGoal)、
    src/paths.ts、src/redact.ts、src/config.ts、test/unit/bridge.test.mjs。
@@ -27,7 +27,7 @@ WP2 与 WP3 在文件不重叠时可并行,其余串行。同一批文件任何�
 提示词必须自带完整上下文(子代理看不到本对话),按下面模板写:
 
   【任务】WP<n>:<名称>
-  【背景】项目 dsh-chatgpt-bridge,TypeScript,Node 22+,测试用 test/unit/*.test.mjs(node:test)。
+  【背景】项目 dsh-chatgpt-bridge,TypeScript,Node 24.9+,测试用 test/unit/*.test.mjs(node:test)。
           目标是新增 advisor 模式,ChatGPT 只读查看工作区并做规划与审查,DSH 负责执行。
   【要做的】<照抄方案里该工作包的规格、文件、工具表和限额>
   【验收】<照抄方案里的验收标准,并列出必须有的测试>
