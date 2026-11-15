@@ -5,6 +5,10 @@ import type { LogLevel } from './log.js';
  * security-first: loopback-only host, bearer-token auth, bounded result sizes.
  */
 export declare const ConfigSchema: z<Schemastery.ObjectS<NoInfer<{
+    /** Tool mode: 'controller' exposes DSH controls; 'advisor' exposes planning/review tools only. */
+    mode: z<"controller" | "advisor", "controller" | "advisor", "defined">;
+    /** Maximum planning/execution iterations per advisor task (1..50). */
+    advisorMaxIterations: z<number, number, "defined">;
     /** MCP transport: 'http' (Streamable HTTP) or 'stdio' (local MCP clients). */
     transport: z<"http" | "stdio", "http" | "stdio", "defined">;
     /** Bind host for the Streamable HTTP server. Loopback only by default. */
@@ -56,6 +60,10 @@ export declare const ConfigSchema: z<Schemastery.ObjectS<NoInfer<{
         dangerFullAccess: z<"deny" | "ask", "deny" | "ask", "defined">;
     }>>, "defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
+    /** Tool mode: 'controller' exposes DSH controls; 'advisor' exposes planning/review tools only. */
+    mode: z<"controller" | "advisor", "controller" | "advisor", "defined">;
+    /** Maximum planning/execution iterations per advisor task (1..50). */
+    advisorMaxIterations: z<number, number, "defined">;
     /** MCP transport: 'http' (Streamable HTTP) or 'stdio' (local MCP clients). */
     transport: z<"http" | "stdio", "http" | "stdio", "defined">;
     /** Bind host for the Streamable HTTP server. Loopback only by default. */
@@ -110,6 +118,8 @@ export declare const ConfigSchema: z<Schemastery.ObjectS<NoInfer<{
 import type { UserApprovalPolicy } from './approval-policy.js';
 /** Input shape accepted from the cordis row config (schema input side). */
 export interface BridgeConfigInput {
+    mode?: 'controller' | 'advisor';
+    advisorMaxIterations?: number;
     transport?: 'http' | 'stdio';
     host?: string;
     port?: number;
@@ -126,6 +136,8 @@ export interface BridgeConfigInput {
 }
 /** Fully resolved configuration after token resolution. */
 export interface ResolvedBridgeConfig {
+    mode: 'controller' | 'advisor';
+    advisorMaxIterations: number;
     transport: 'http' | 'stdio';
     host: string;
     port: number;

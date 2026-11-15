@@ -9,6 +9,8 @@ import { Bridge } from './bridge.js';
 import { bridgeHttpUrl, ConfigSchema, resolveConfig, type BridgeConfigInput, type ResolvedBridgeConfig } from './config.js';
 import { createBridgeLogger, createControlLogger } from './log.js';
 import { createMcpServer } from './mcp.js';
+import { createAdvisorRuntime } from './advisor/runtime.js';
+import { registerAdvisorAgentTools } from './advisor/agent-tools.js';
 import { startHttpServer, type HttpServerHandle } from './http.js';
 import { RuntimeManager } from './control/runtime-manager.js';
 import { createManagementApi } from './control/routes.js';
@@ -35,6 +37,8 @@ export function apply(ctx: Context, config: BridgeConfigInput): void {
   });
 
   const bridge = new Bridge(ctx, cfg, log);
+  const advisor = cfg.mode === 'advisor' ? createAdvisorRuntime(cfg, log) : undefined;
+  registerAdvisorAgentTools(ctx, advisor, bridge, log);
   bridge.start();
 
   // v0.4.0 Control Plane: runtime manager + management API (web profile only).
@@ -61,7 +65,7 @@ export function apply(ctx: Context, config: BridgeConfigInput): void {
     return () => disposeApi();
   });
 
-  const mcpServer = createMcpServer(bridge, cfg, log);
+  const mcpServer = createMcpServer(bridge, cfg, log, advisor);
   let stdioTransport: StdioServerTransport | undefined;
   let stdioReady: Promise<void> | undefined;
   let httpReady: Promise<HttpServerHandle> | undefined;
@@ -74,7 +78,7 @@ export function apply(ctx: Context, config: BridgeConfigInput): void {
     });
   } else {
     httpReady = startHttpServer(
-      () => createMcpServer(bridge, cfg, log),
+      () => createMcpServer(bridge, cfg, log, advisor),
       { host: cfg.host, port: cfg.port, authMode: cfg.authMode, authToken: cfg.authToken },
       log,
     );
@@ -118,6 +122,11 @@ export function apply(ctx: Context, config: BridgeConfigInput): void {
     }
     try {
       await mcpServer.close();
+    } catch {
+      // best-effort
+    }
+    try {
+      await advisor?.close();
     } catch {
       // best-effort
     }

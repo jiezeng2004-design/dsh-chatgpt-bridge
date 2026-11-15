@@ -15,6 +15,7 @@
   },
   "files": [
     "lib",
+    "skills/chatgpt-advisor/SKILL.md",
     "assets/screenshots/06-native-settings-real-use.png",
     "cordis.patch.yml",
     "cordis.headless.patch.yml",
@@ -67,6 +68,7 @@
     "test:release": "node scripts/release-package-test.mjs",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('lib', { recursive: true, force: true })\"",
     "dogfood": "node scripts/dogfood.mjs",
+    "dogfood:advisor": "node scripts/advisor-dogfood.mjs",
     "dogfood:goal": "node scripts/goal-control-dogfood.mjs",
     "resume-test": "node scripts/resume-test.mjs",
     "demo-flow": "node scripts/demo-flow.mjs"
@@ -77,6 +79,7 @@
     "zod": "4.4.3"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
     "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
@@ -84,7 +87,13 @@
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-title": "0.2.0-rc.2"
   },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/dsh-agent-default-model": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",

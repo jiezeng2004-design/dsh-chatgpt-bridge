@@ -10,6 +10,10 @@ import type { LogLevel } from './log.js';
  * security-first: loopback-only host, bearer-token auth, bounded result sizes.
  */
 export const ConfigSchema = z.object({
+  /** Tool mode: 'controller' exposes DSH controls; 'advisor' exposes planning/review tools only. */
+  mode: z.union([z.const('controller'), z.const('advisor')]).default('controller'),
+  /** Maximum planning/execution iterations per advisor task (1..50). */
+  advisorMaxIterations: z.number().min(1).max(50).default(12),
   /** MCP transport: 'http' (Streamable HTTP) or 'stdio' (local MCP clients). */
   transport: z.union([z.const('http'), z.const('stdio')]).default('http'),
   /** Bind host for the Streamable HTTP server. Loopback only by default. */
@@ -66,6 +70,8 @@ import type { UserApprovalPolicy } from './approval-policy.js';
 
 /** Input shape accepted from the cordis row config (schema input side). */
 export interface BridgeConfigInput {
+  mode?: 'controller' | 'advisor';
+  advisorMaxIterations?: number;
   transport?: 'http' | 'stdio';
   host?: string;
   port?: number;
@@ -83,6 +89,8 @@ export interface BridgeConfigInput {
 
 /** Fully resolved configuration after token resolution. */
 export interface ResolvedBridgeConfig {
+  mode: 'controller' | 'advisor';
+  advisorMaxIterations: number;
   transport: 'http' | 'stdio';
   host: string;
   port: number;
@@ -245,6 +253,10 @@ export function resolveConfig(
     authToken = createTokenFile(tokenFile);
   }
   return {
+    mode: input.mode === 'advisor' ? 'advisor' : 'controller',
+    advisorMaxIterations: Math.min(50, Math.max(1, Math.trunc(
+      Number.isFinite(input.advisorMaxIterations) ? input.advisorMaxIterations! : 12,
+    ))),
     transport,
     host,
     port: input.port ?? 3456,
